@@ -1,0 +1,164 @@
+/* Program content container */
+.program-content {
+  font-family: var(--font-family-basic), sans-serif;
+}
+
+.program-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #000000;
+}
+
+.program-features {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 25px;
+}
+
+.feature-item {
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #333;
+  margin: 0;
+}
+
+.program-info {
+  background: #f8f8f8;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.program-info p {
+  margin: 0;
+  color: #666;
+}
+
+/* Tasks container */
+.tasks-container {
+  display: flex;
+  justify-content: space-between;
+}
+
+.task-icon {
+  width: 33px;
+  height: 33px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Task cards */
+.task-card {
+  position: relative;
+  width: 159px;
+  height: 101px;
+  border-radius: 20px;
+  background-color: var(--color-basic);
+  display: flex;
+  padding: 10px 0px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0px 4px 4px 0px #00000040;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.task-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
+}
+
+.task-card.completed {
+  filter: grayscale(50%);
+}
+
+.task-card.completed::after {
+  content: "Completed ✅";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(89 95 49 / 71%);
+  color: #fff;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
+  font-size: 21px;
+  font-weight: 700;
+  border-radius: 20px;
+  z-index: 10;
+  -webkit-text-stroke: 0.5px #2c2c2c;
+}
+.task-card p {
+  margin: 0;
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-style: Bold;
+  leading-trim: NONE;
+  line-height: 100%;
+  letter-spacing: 0%;
+  text-align: center;
+}
+.task-card p:first-of-type {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+.task-card p:last-of-type {
+  font-size: 12px;
+}
+
+/* ==================== MOBILE STYLES ==================== */
+@media screen and (max-width: 768px) {
+  .tasks-container {
+    gap: 15px;
+    align-items: center;
+  }
+  .task-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .task-card {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .task-card.completed::after {
+    text-align: center;
+    font-size: 15px;
+  }
+
+  .program-title {
+    font-size: 20px;
+  }
+
+  .feature-item {
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .task-card p {
+    margin: 0;
+    font-family: var(--font-family-basic), sans-serif;
+    font-weight: 700;
+    font-style: Bold;
+    leading-trim: NONE;
+    line-height: 100%;
+    letter-spacing: 0%;
+    text-align: center;
+  }
+  .task-card p:first-of-type {
+    font-size: 14px;
+    margin-bottom: 5px;
+  }
+  .task-card p:last-of-type {
+    font-size: 10px;
+  }
+}
