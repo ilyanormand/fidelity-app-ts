@@ -1,0 +1,397 @@
+/* Change points content container */
+.change-points-content {
+  font-family: var(--font-family-basic), sans-serif;
+}
+
+.change-points-title {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-style: Bold;
+  font-size: 24px;
+  leading-trim: NONE;
+  line-height: 100%;
+  letter-spacing: 0%;
+  margin-bottom: 10px;
+}
+
+.change-points-features {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 18px;
+}
+
+.change-points-item {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-style: Bold;
+  font-size: 15px;
+  leading-trim: NONE;
+  line-height: 1.1;
+  letter-spacing: 0%;
+  margin: 0;
+}
+
+/* Rewards container */
+.rewards-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px 15px;
+  flex-wrap: wrap;
+}
+
+.reward-icon {
+  width: 74px;
+  height: 74px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-bottom: 5px;
+}
+
+/* Reward cards */
+.reward-card {
+  cursor: pointer;
+  position: relative;
+  width: 174px;
+  height: 181px;
+  padding: 7px 7px 15px 7px;
+  border-radius: 12px;
+  background-color: var(--color-basic);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0px 4px 4px 0px #00000040;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    background-color 0.3s ease;
+  overflow: hidden;
+}
+
+.reward-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
+  background-color: #f6ffc6;
+}
+
+.reward-card.unavailable {
+  filter: grayscale(70%);
+  opacity: 0.6;
+}
+
+.reward-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover show only button */
+.reward-card:hover .reward-card-content .reward-icon,
+.reward-card:hover .reward-card-content h4,
+.reward-card:hover .reward-card-content p {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.reward-card-content .redeem-btn {
+  position: relative;
+  z-index: 2;
+}
+
+.reward-card-hover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  padding: 25px 10px 10px 10px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.reward-card:hover .reward-card-hover {
+  opacity: 1;
+}
+
+.reward-card-hover p {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700 !important;
+  font-style: Bold !important;
+  font-size: 16px !important;
+  margin: 0 !important;
+  color: #000000;
+}
+
+.reward-card h4 {
+  font-family: Barlow;
+  font-weight: 700;
+  font-style: Bold;
+  font-size: 16px;
+  leading-trim: NONE;
+  line-height: 100%;
+  letter-spacing: 0%;
+  text-align: center;
+  margin: 0 0 5px 0;
+  padding: 0px 10px;
+}
+
+.reward-card p {
+  font-family: Barlow;
+  font-weight: 700;
+  font-style: Bold;
+  font-size: 14px;
+  line-height: 100%;
+  letter-spacing: 0%;
+  text-align: center;
+  margin: 0 0 15px 0;
+}
+
+.redeem-btn {
+  border-radius: 20px;
+  margin-top: auto;
+  padding: 0px 10px;
+  background-color: #000000;
+  color: white;
+  border: none;
+  font-weight: 700;
+  width: 110px;
+  height: 33px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  font-family: var(--font-family-basic), sans-serif;
+}
+
+.redeem-btn:hover {
+  background-color: #404040;
+}
+
+.redeem-btn.disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+.redeem-btn.disabled:hover {
+  background-color: #999;
+}
+
+.redeem-btn.processing {
+  cursor: wait;
+}
+
+/* ==================== MOBILE STYLES ==================== */
+@media screen and (max-width: 768px) {
+  .rewards-container {
+    align-items: space-around;
+    padding: 0 10px;
+  }
+
+  .reward-card {
+    width: 100%;
+    max-width: 130px;
+  }
+
+  .reward-card p {
+    margin: 0;
+  }
+
+  .redeem-btn {
+    border-radius: 20px;
+    background-color: black;
+    width: 101px;
+    height: 29px;
+    color: white;
+    font-family: var(--font-family-basic), sans-serif;
+    font-weight: 700;
+    font-style: Bold;
+    font-size: 11px;
+    line-height: 100%;
+    letter-spacing: 0%;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .change-points-title {
+    font-size: 20px;
+  }
+
+  .change-points-item {
+    font-size: 14px;
+  }
+}
+
+/* ==================== MODAL STYLES ==================== */
+.reward-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.reward-modal.active {
+  display: flex;
+}
+
+.reward-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 1;
+}
+
+.reward-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  background-color: white;
+  border-radius: 16px;
+  padding: 20px 30px;
+  max-width: 357px;
+  height: max-content;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0px 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.reward-modal-content h3 {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #000000;
+  margin: 0 0 10px 0;
+}
+
+.reward-modal-icon {
+  width: 135px;
+  height: 135px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-bottom: 5px;
+}
+
+.reward-modal-content .modal-message {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #000000;
+  margin: 0 0 10px 0;
+}
+
+.reward-modal-content .modal-code-container {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-basic);
+  border-radius: 10px;
+  padding: 5px 18px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.reward-modal-content .modal-code-container.copied {
+  background-color: var(--color-basic);
+}
+
+.reward-modal-content .modal-code-container.copied .modal-code {
+  color: rgb(0, 0, 0);
+}
+
+.reward-modal-content .modal-code-container.copied .code-revealed-logo {
+  display: none;
+}
+.reward-modal-content .modal-code-container .code-revealed-logo {
+  filter: invert(0);
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+  margin-left: 5px;
+}
+.reward-modal-content .modal-code {
+  color: black;
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  margin: 0;
+  font-size: 20px;
+}
+
+.reward-modal-content .modal-info {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #000000;
+  margin: 0 0 10px 0;
+  line-height: 100%;
+  margin: 0;
+}
+
+.reward-modal-content .modal-minimum {
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #000000;
+  margin-bottom: 10px;
+}
+
+.reward-modal-content .modal-btn {
+  background-color: #000000;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 15px 30px;
+  font-family: var(--font-family-basic), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
+  max-width: 300px;
+}
+
+.reward-modal-content .modal-btn:hover {
+  background-color: #333333;
+}
+
+@media screen and (max-width: 768px) {
+  .reward-modal-content {
+    padding: 30px 20px;
+    max-width: 90%;
+  }
+
+  .reward-modal-content h3 {
+    font-size: 24px;
+  }
+
+  .reward-modal-content .modal-code {
+    font-size: 24px;
+    padding: 12px 15px;
+  }
+
+  .reward-modal-content .modal-btn {
+    font-size: 14px;
+    padding: 12px 25px;
+  }
+}
