@@ -1,0 +1,10 @@
+name = "loyalty-widget"
+
+uid = "63dc22e1-27da-358d-1f2a-1e6d9b60e4b66a03a917"
+
+type = "theme"
+
+[[blocks]]
+type = "loyalty-widget"
+name = "Loyalty Widget"
+file = "blocks/loyalty-widget.liquid"
