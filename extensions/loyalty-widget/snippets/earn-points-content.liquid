@@ -1,4 +1,15 @@
+<link href="{{ 'styles-earn-points-content.css' | asset_url }}" rel="stylesheet">
 
 <div class="earn-points-content">
-    <p>Earn points content</p>
+  <h3 class="earn-points-title">⭐{{ 'loyalty_widget.pages.earn_points.title' | t }}</h3>
+  <div class="earn-points-features">
+    <p class="earn-points-item">{{ 'loyalty_widget.pages.earn_points.first_feature' | t }}</p>
+    <p class="earn-points-item" style="margin-bottom: 10px;">
+      👉{{ 'loyalty_widget.pages.earn_points.second_feature' | t }}</p>
+    <p class="earn-points-item">{{ 'loyalty_widget.pages.earn_points.third_feature' | t }}</p>
+    <p class="earn-points-item">{{ 'loyalty_widget.pages.earn_points.fourth_feature' | t }}</p>
+  </div>
+  <div class="earn-points-tasks" id="earn-points-tasks">
+      <p>{{ 'loyalty_widget.other.loading_tasks' | t }}</p>
+  </div>
 </div>
