@@ -1,5 +1,6 @@
 node_modules
-
+.cursor
+.gemini/extensions/shopify-dev-mcp
 /.cache
 /build
 /app/build
