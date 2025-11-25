@@ -1,0 +1,37 @@
+{
+  "loyalty_widget": {
+    "navbar": {
+      "my_program": "Mon programme",
+      "earn_points": "Gagner des points",
+      "change_points": "Échanger mes points",
+      "my_rewards": "Mes récompenses"
+    },
+    "pages": {
+      "my_program": {
+        "title": "Mon Programme de Fidélité",
+        "first_feature": "Gagnez des points à chaque achat ou mission",
+        "second_feature": "Échangez-les contre des réductions",
+        "third_feature": "Profitez de vos récompenses"
+      },
+      "change_points": {
+        "title": "Échanger mes points",
+        "first_feature": "Chaque achat vous rapporte des points : transformez-les ensuite en bons d’achat ou réductions exclusives.",
+        "second_feature": "Choisissez votre récompense, cliquez, et profitez-en dès votre prochaine commande"
+      },
+      "earn_points": {
+        "title": "Comment gagner des points ?",
+        "first_feature": "Gagner des points, c'est simple comme bonjour !",
+        "second_feature": "Chaque euro dépensé = 1 point gagné automatiquement sur votre compte.",
+        "third_feature": "Et pour booster votre compteur, relevez les missions que vous trouverez ci dessous.",
+        "fourth_feature": "Plus vous jouez le jeu, plus vous cumulez de points!"
+      },
+      "my_rewards": {
+        "title": "Mes récompenses",
+        "first_feature": "En tant que membre, vous gagnez des points à chaque fois que vous faites des achats ou des missions. Échangez vos points contre des réductions valable sur vos prochaines commandes !"
+      }
+    },
+    "other": {
+      "loading_tasks": "Loading tasks..."
+    }
+  }
+}
