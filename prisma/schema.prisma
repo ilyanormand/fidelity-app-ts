@@ -9,9 +9,10 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
 
 model Session {
   id            String    @id
@@ -30,3 +31,51 @@ model Session {
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
 }
+
+model Customer {
+  id                Int    @id @default(autoincrement())
+  shopifyCustomerId String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  redemptions Redemption[]
+}
+
+model Ledger {
+  id         Int      @id @default(autoincrement())
+  customerId String
+  shopId     String
+  points     Int
+  created_at DateTime  @default(now())
+}
+
+model Reward {
+  id              Int          @id @default(autoincrement())
+  title           String
+  points_cost     Int
+  discount_amount Decimal
+  min_purchase    Decimal
+  description     String?
+  active          Boolean      @default(true)
+  created_at      DateTime     @default(now())
+  redemptions     Redemption[]
+}
+
+enum RedemptionStatus {
+  active
+  used
+  expired
+}
+
+model Redemption {
+  id            Int              @id @default(autoincrement())
+  customerId    Int
+  customer      Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rewardId      Int
+  reward        Reward           @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  points_spent  Int
+  discount_code String
+  status        RedemptionStatus @default(active)
+  expires_at    DateTime?
+  created_at    DateTime         @default(now())
+}
+
