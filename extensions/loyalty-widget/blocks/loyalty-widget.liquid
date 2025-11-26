@@ -1,0 +1,40 @@
+<style>
+  @media screen and (max-width: 768px) {
+    .hide-on-mobile {
+      display: none !important;
+    }
+  }
+</style>
+<div id="loyalty-spa-root">
+  <div class="loyalty-spa-container">
+    <div id="loyalty-page-content">
+      <div class="fake-nav-panel" style="display: flex;">
+        <div class="hide-on-mobile" style="width: 505px;">FAKE NAV PANNEL WIDTH: 269px</div>
+
+        <div data="div-content" class="loyalty-page" id="change_points-content" style="display: block;">
+          {% render 'change-points-content' %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Data of user available for make requests to API in all tabs
+  window.loyaltyConfig = {
+    customerId: '{{ customer.id }}',
+    customerEmail: '{{ customer.email }}',
+    shop: '{{ shop.permanent_domain }}',
+  };
+</script>
+
+<script src="{{ 'loader-change-points.js' | asset_url }}" defer></script>
+<link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
+
+{% schema %}
+{
+  "name": "Loyalty Widget",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}
