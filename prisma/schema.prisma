@@ -30,3 +30,102 @@ model Session {
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
 }
+
+model Shop {
+  shopDomain   String   @id
+  accessToken  String
+  currencyCode String?
+  createdAt    DateTime @default(now())
+
+  customers Customer[]
+  ledger    Ledger[]
+  rewards   Reward[]
+}
+
+model Customer {
+  id     Int    @id @default(autoincrement())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [shopDomain], onDelete: Cascade)
+
+  shopifyCustomerId String
+  email             String?
+  firstName         String?
+  lastName          String?
+
+  totalEarned Int @default(0)
+  totalSpent  Int @default(0)
+  balance     Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  redemptions Redemption[]
+  ledger      Ledger[]
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerSource {
+  AUTOMATIC
+  MANUAL
+  REFUND
+  SYSTEM
+  PROMOTION
+}
+
+model Ledger {
+  id     Int    @id @default(autoincrement())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [shopDomain], onDelete: Cascade)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  points    Int
+  direction LedgerDirection
+  source    LedgerSource
+  reason    String?
+  orderId   String? // optional, for order-based rewards
+
+  createdAt DateTime @default(now())
+}
+
+model Reward {
+  id     Int    @id @default(autoincrement())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [shopDomain], onDelete: Cascade)
+
+  title          String
+  pointsCost     Int
+  discountAmount Decimal
+  minPurchase    Decimal
+  description    String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  redemptions Redemption[]
+}
+
+enum RedemptionStatus {
+  ACTIVE
+  USED
+  EXPIRED
+}
+
+model Redemption {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  rewardId Int
+  reward   Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  pointsSpent  Int
+  discountCode String
+  status       RedemptionStatus @default(ACTIVE)
+  expiresAt    DateTime?
+  createdAt    DateTime         @default(now())
+}

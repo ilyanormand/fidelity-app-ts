@@ -1,0 +1,27 @@
+.chartAndStatus {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.chartSection {
+  min-width: 0;
+}
+
+.statusSection {
+  min-width: 0;
+}
+
+.customersTable {
+  :global {
+    .Polaris-DataTable__Table thead {
+      background-color: #f6f6f7;
+      border-radius: 0;
+    }
+
+    .Polaris-DataTable__Cell--header {
+      background-color: #f6f6f7;
+      border-radius: 0;
+    }
+  }
+}

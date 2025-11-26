@@ -1,0 +1,29 @@
+{
+  "loyalty_widget": {
+    "navbar": {
+      "my_program": "Mon programme",
+      "earn_points": "Gagner des points",
+      "change_points": "Échanger mes points",
+      "my_rewards": "Mes récompenses"
+    },
+    "name": {
+      "default": "Widget de fidélité"
+    },
+    "settings": {
+      "title_label": "Titre",
+      "title_info": "Le titre affiché dans le widget",
+      "points_label": "Points par achat",
+      "points_info": "Nombre de points gagnés par transaction"
+    },
+    "pages": {
+      "my_program": {
+        "title": "Mon Programme de Fidélité",
+        "description": "Découvrez votre programme de fidélité personnalisé"
+      },
+      "change_points": {
+        "title": "Échanger mes points",
+        "description": "Utilisez vos points pour obtenir des récompenses"
+      }
+    }
+  }
+}
