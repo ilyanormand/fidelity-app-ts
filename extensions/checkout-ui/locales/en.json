@@ -1,0 +1,25 @@
+{
+  "attributeChangesAreNotSupported": "Les modifications d'attribut ne sont pas prises en charge dans cette commande",
+  "loyaltyProgram": "Programme de fidélité",
+  "balance": "Balance:",
+  "points": "Points",
+  "withoutPoints": "Pour l'instant vous n'avez pas de points",
+  "changePointsForDiscount": "Échangez vos points contre une réduction",
+  "pointsToRedeem": "Points à rédimer",
+  "pointsToItem": "Points à l'item",
+  "applyPoints": "Appliquer les points",
+  "expectedDiscount": "Remise attendue",
+  "applyPointsButton": "Appliquer les points",
+  "yourEmail": "Votre email",
+  "components": {
+    "login": "Se connecter"
+  },
+  "errors": {
+    "joinAccount": "Vous devez vous connecter pour utiliser les points",
+    "errorPointsQuantity": "Erreur de quantité de points",
+    "notificationInputMoreZero": "Veuillez saisir un score supérieur à 0.",
+    "errorApplyPoints": "Les points n'ont pas pu être appliqués. Veuillez réessayer.",
+    "pointsNotEnough": "Vous n'avez pas assez de points",
+    "errorChangePoints": "Les points n'ont pas pu être appliqués. Veuillez réessayer."
+  }
+}

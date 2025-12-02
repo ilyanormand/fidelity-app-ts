@@ -1,0 +1,33 @@
+{
+  "cart": {
+    "attribute": {
+      "key": "_loyalty_free_items",
+      "value": "[\"gid://shopify/ProductVariant/111\"]"
+    },
+    "lines": [
+      {
+        "id": "gid://shopify/CartLine/1",
+        "merchandise": {
+          "__typename": "ProductVariant",
+          "id": "gid://shopify/ProductVariant/111",
+          "product": {
+            "metafield": null
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/CartLine/2",
+        "merchandise": {
+          "__typename": "ProductVariant",
+          "id": "gid://shopify/ProductVariant/999",
+          "product": {
+            "metafield": null
+          }
+        }
+      }
+    ]
+  },
+  "discount": {
+    "discountClasses": ["PRODUCT"]
+  }
+}
