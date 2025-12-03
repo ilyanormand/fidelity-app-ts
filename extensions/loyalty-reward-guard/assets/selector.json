@@ -1,0 +1,4 @@
+{
+  "variantIdAttribute": ["data-variant-id"],
+  "buttonPlus": ["button[name='plus']"]
+}

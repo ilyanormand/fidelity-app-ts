@@ -1,4 +1,131 @@
+//JSON PARSE PROTECTION
+export function parseFreeItemsAttribute(
+  value: string | null | undefined,
+): Record<string, FreeItemData> {
+  const result: Record<string, FreeItemData> = {};
+
+  if (!value) {
+    return result;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (isValidFreeItemsMap(parsed)) {
+      return parsed;
+    }
+
+    if (Array.isArray(parsed)) {
+      parsed.forEach((variantId: unknown) => {
+        if (typeof variantId === "string" && variantId.length > 0) {
+          result[variantId] = { quantity: 1, spent: 0 };
+        }
+      });
+      return result;
+    }
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      return result;
+    }
+
+    Object.entries(parsed).forEach(([key, value]) => {
+      if (typeof key !== "string" || key.length === 0) {
+        return;
+      }
+
+      if (typeof value === "number" && value > 0) {
+        result[key] = { quantity: value, spent: 0 };
+        return;
+      }
+
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        const data = value as any;
+        if (
+          typeof data.quantity === "number" &&
+          typeof data.spent === "number" &&
+          data.quantity > 0 &&
+          !isNaN(data.quantity) &&
+          isFinite(data.quantity) &&
+          !isNaN(data.spent) &&
+          isFinite(data.spent) &&
+          data.spent >= 0
+        ) {
+          result[key] = {
+            quantity: data.quantity,
+            spent: data.spent,
+          };
+        }
+      }
+    });
+  } catch (e) {
+    // Ignore parse errors
+  }
+
+  return result;
+}
+
+interface FreeItemData {
+  quantity: number;
+  spent: number;
+}
+
+//JSON PARSE PROTECTION
+function isValidFreeItemsMap(
+  value: any,
+): value is Record<string, FreeItemData> {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    value.constructor !== Object
+  ) {
+    return false;
+  }
+  if ("__proto__" in value || "constructor" in value) {
+    return false;
+  }
+  return Object.entries(value).every(([key, item]) => {
+    if (typeof key !== "string" || key.length === 0) {
+      return false;
+    }
+    if (
+      typeof item !== "object" ||
+      item === null ||
+      Array.isArray(item) ||
+      item.constructor !== Object
+    ) {
+      return false;
+    }
+    if ("__proto__" in item || "constructor" in item) {
+      return false;
+    }
+    const data = item as any;
+    return (
+      typeof data.quantity === "number" &&
+      !isNaN(data.quantity) &&
+      isFinite(data.quantity) &&
+      data.quantity > 0 &&
+      typeof data.spent === "number" &&
+      !isNaN(data.spent) &&
+      isFinite(data.spent) &&
+      data.spent >= 0
+    );
+  });
+}
+
+//FUNCTION FOR GET BALANCE FROM METAFIELDS
 export function getBalanceFromMetafields(useAppMetafields) {
+  if (!useAppMetafields || typeof useAppMetafields !== "function") {
+    return 0;
+  }
   const balanceMetafields = useAppMetafields({
     namespace: "loyalty",
     key: "balance",
@@ -14,8 +141,16 @@ export function getBalanceFromMetafields(useAppMetafields) {
   return metafieldsBalanceCheck;
 }
 
+//FUNCTION FOR CHANGE POINTS TO MONEY
 export async function changePointsToMoney(shopify: any, points: number) {
-  let status = false;
+  if (!shopify || typeof shopify.applyAttributeChange !== "function") {
+    return {
+      status: false,
+      error:
+        shopify.i18n?.translate("errors.errorChangePoints") ||
+        "Error changing points to money",
+    };
+  }
   const numericPoints = Number(points || 0);
   const result = await shopify.applyAttributeChange({
     type: "updateAttribute",
@@ -24,13 +159,29 @@ export async function changePointsToMoney(shopify: any, points: number) {
   });
 
   if (result.type === "error") {
-    return (status = false);
+    return {
+      status: false,
+      error:
+        shopify.i18n?.translate("errors.errorChangePoints") ||
+        "Error changing points to money",
+    };
   }
-  return (status = true);
+  return {
+    status: true,
+    error: null,
+  };
 }
 
+//FUNCTION FOR CANCEL POINTS TO MONEY
 export async function cancelPointsRedemption(shopify: any) {
-  let status = false;
+  if (!shopify || typeof shopify.applyAttributeChange !== "function") {
+    return {
+      status: false,
+      error:
+        shopify.i18n?.translate("errors.errorCancelChangePoints") ||
+        "Error canceling points to money",
+    };
+  }
   const result = await shopify.applyAttributeChange({
     type: "updateAttribute",
     key: "_loyalty_points_to_redeem",
@@ -38,12 +189,24 @@ export async function cancelPointsRedemption(shopify: any) {
   });
 
   if (result.type === "error") {
-    return (status = false);
+    return {
+      status: false,
+      error:
+        shopify.i18n?.translate("errors.errorCancelChangePoints") ||
+        "Error canceling points to money",
+    };
   }
-  return (status = true);
+  return {
+    status: true,
+    error: null,
+  };
 }
 
+//FUNCTION FOR FETCH REWARD PRODUCTS
 export async function fetchRewardProducts(shopify) {
+  if (!shopify || typeof shopify.query !== "function") {
+    return [];
+  }
   const query = `
     query rewardProducts {
       products(first: 50) {
@@ -71,6 +234,16 @@ export async function fetchRewardProducts(shopify) {
       // metafield exists and has value
       if (!mf || mf.value == null) return null;
 
+      // Check if variants exist and have at least one node
+      if (
+        !p.variants?.nodes ||
+        !Array.isArray(p.variants.nodes) ||
+        p.variants.nodes.length === 0 ||
+        !p.variants.nodes[0]?.id
+      ) {
+        return null;
+      }
+
       return {
         id: p.id,
         title: p.title,
@@ -83,12 +256,23 @@ export async function fetchRewardProducts(shopify) {
   return rewards;
 }
 
+//FUNCTION FOR VALIDATE CART WITH FREE ITEMS
+//FOR EXAMPLE IF CUSTOMER DELETE ITEM FROM CART, WE NEED TO UPDATE ATTRIBUTES
 export async function validateCartWithFreeItems(shopify) {
+  if (!shopify) {
+    return;
+  }
   const cartLines = shopify.lines?.current || [];
-  let ids = [];
+
+  const cartLinesMap = new Map<string, number>();
   cartLines.forEach((line) => {
-    ids.push(line.merchandise.id);
+    if (line?.merchandise?.id) {
+      const variantId = line.merchandise.id;
+      const quantity = line.quantity || 1;
+      cartLinesMap.set(variantId, quantity);
+    }
   });
+
   const allAttributes = shopify.attributes?.current || [];
 
   const cartAttributes: Record<string, string> = {};
@@ -103,40 +287,66 @@ export async function validateCartWithFreeItems(shopify) {
     return;
   }
 
-  let freeItemsArray: string[] = [];
-  try {
-    const parsed = JSON.parse(freeItemsAttr);
-    if (Array.isArray(parsed)) {
-      freeItemsArray = parsed;
-    } else {
-      return;
-    }
-  } catch (e) {
-    return;
-  }
+  const freeItemsMap = parseFreeItemsAttribute(freeItemsAttr);
 
-  const validFreeItems = freeItemsArray.filter((variantId) =>
-    ids.includes(variantId),
-  );
-  if (validFreeItems.length !== freeItemsArray.length) {
+  const validFreeItemsMap: Record<string, FreeItemData> = {};
+  let needsUpdate = false;
+
+  Object.entries(freeItemsMap).forEach(([variantId, itemData]) => {
+    if (cartLinesMap.has(variantId)) {
+      const cartQuantity = cartLinesMap.get(variantId) || 0;
+      const finalQuantity = Math.min(itemData.quantity, cartQuantity);
+      const pointsPerItem =
+        itemData.quantity > 0 ? itemData.spent / itemData.quantity : 0;
+      validFreeItemsMap[variantId] = {
+        quantity: finalQuantity,
+        spent: pointsPerItem * finalQuantity,
+      };
+      if (
+        finalQuantity !== itemData.quantity ||
+        finalQuantity !== cartQuantity
+      ) {
+        needsUpdate = true;
+      }
+    } else {
+      needsUpdate = true;
+    }
+  });
+
+  if (needsUpdate && shopify.applyAttributeChange) {
     await shopify.applyAttributeChange({
       type: "updateAttribute",
       key: "_loyalty_free_items",
-      value: JSON.stringify(validFreeItems),
+      value: JSON.stringify(validFreeItemsMap),
+    });
+
+    const totalSpent = Object.values(validFreeItemsMap).reduce(
+      (sum, item) => sum + item.spent,
+      0,
+    );
+    await shopify.applyAttributeChange({
+      type: "updateAttribute",
+      key: "_loyalty_points_spent",
+      value: String(totalSpent),
     });
   }
 }
 
 export async function validatePointsBalance(
   shopify,
-  balance,
-  setBalance,
-  freeItems,
+  setAppliedDiscountPoints,
   initialBalance?,
-  applyCartLinesChange?,
+  setBalance?,
 ) {
-  const allAttributes = shopify.attributes?.current || [];
+  if (!shopify) {
+    return;
+  }
 
+  if (initialBalance === undefined || initialBalance === null) {
+    return;
+  }
+
+  const allAttributes = shopify.attributes?.current || [];
   const cartAttributes: Record<string, string> = {};
   allAttributes.forEach((attr) => {
     if (attr && attr.key) {
@@ -144,209 +354,57 @@ export async function validatePointsBalance(
     }
   });
 
-  const spentPointsAttr = cartAttributes["_loyalty_points_spent"];
-  const spentPoints = spentPointsAttr ? Number(spentPointsAttr) : 0;
-
   const pointsToRedeemAttr = cartAttributes["_loyalty_points_to_redeem"];
   const pointsToRedeem = pointsToRedeemAttr ? Number(pointsToRedeemAttr) : 0;
 
-  const cartLines = shopify.lines?.current || [];
+  const pointsSpentAttr = cartAttributes["_loyalty_points_spent"];
+  const pointsSpent = pointsSpentAttr ? Number(pointsSpentAttr) : 0;
 
-  const freeItemsAttr = cartAttributes["_loyalty_free_items"];
-  let freeItemsArray: string[] = [];
+  const metafieldsBalance = initialBalance || 0;
+  const totalSpent = pointsToRedeem + pointsSpent;
 
-  if (freeItemsAttr) {
-    try {
-      const parsed = JSON.parse(freeItemsAttr);
-      if (Array.isArray(parsed)) {
-        freeItemsArray = parsed;
-      }
-    } catch (e) {}
+  if (initialBalance === 0) {
+    return;
   }
 
-  const pointsMapAttr = cartAttributes["_loyalty_points_map"];
-  let pointsMap: Record<string, number> = {};
-
-  if (pointsMapAttr) {
-    try {
-      const parsed = JSON.parse(pointsMapAttr);
-      if (typeof parsed === "object" && !Array.isArray(parsed)) {
-        pointsMap = parsed;
-      }
-    } catch (e) {}
-  }
-
-  // Create an array of items purchased with points, including cost and quantity information
-  const freeItemsLines = [];
-  let totalCostFromCart = 0;
-
-  cartLines.forEach((line) => {
-    if (
-      !line.merchandise ||
-      (line.merchandise.__typename &&
-        line.merchandise.__typename !== "ProductVariant")
-    ) {
-      return;
-    }
-
-    const variantId = line.merchandise.id;
-
-    if (freeItemsArray.includes(variantId)) {
-      const pointsCost = pointsMap[variantId] || 0;
-      const quantity = line.quantity || 1;
-      const lineTotalCost = pointsCost * quantity;
-
-      // Extract ID from GID if needed (e.g., "gid://shopify/CartLine/123" -> "123")
-      let lineId = String(line.id);
-      if (lineId.startsWith("gid://")) {
-        const parts = lineId.split("/");
-        lineId = parts[parts.length - 1] || lineId;
-      }
-
-      freeItemsLines.push({
-        lineId: lineId,
-        variantId: variantId,
-        pointsCost: pointsCost,
-        quantity: quantity,
-        totalCost: lineTotalCost,
-      });
-
-      totalCostFromCart += lineTotalCost;
-    }
-  });
-
-  // Get available balance (source balance minus points spent on monetary discount)
-  const sourceBalance = initialBalance !== undefined ? initialBalance : balance;
-  const availableBalance = Math.max(0, sourceBalance - pointsToRedeem);
-
-  // Don't remove items if balance is not loaded yet
-  // Wait until initialBalance is available from metafields
-  // Only remove items if we have a positive balance OR if initialBalance was explicitly passed and > 0
-  const isBalanceLoaded =
-    (initialBalance !== undefined && initialBalance > 0) || sourceBalance > 0;
-
-  // If total cost of items exceeds available balance, remove items
-  // But only if balance is loaded, otherwise wait for balance to load first
-  if (
-    totalCostFromCart > availableBalance &&
-    applyCartLinesChange &&
-    isBalanceLoaded
-  ) {
-    // Sort items by index in array (remove in order of addition)
-    // or by cost (remove most expensive first)
-    const sortedLines = [...freeItemsLines].sort(
-      (a, b) => b.totalCost - a.totalCost,
-    );
-
-    let currentTotal = totalCostFromCart;
-    const linesToRemove = [];
-    const variantsToRemove = new Set<string>();
-    const linesToUpdate = [];
-
-    // Remove items until total becomes less than or equal to available balance
-    for (const line of sortedLines) {
-      if (currentTotal <= availableBalance) {
-        break;
-      }
-
-      const neededReduction = currentTotal - availableBalance;
-      const lineTotalCost = line.pointsCost * line.quantity;
-
-      // If item cost is greater than or equal to needed reduction, remove entire line
-      if (lineTotalCost >= neededReduction || line.quantity === 1) {
-        linesToRemove.push(line);
-        variantsToRemove.add(line.variantId);
-        currentTotal -= lineTotalCost;
-      } else {
-        // Decrease item quantity
-        const itemsToRemove = Math.ceil(neededReduction / line.pointsCost);
-        const newQuantity = Math.max(0, line.quantity - itemsToRemove);
-
-        if (newQuantity === 0) {
-          linesToRemove.push(line);
-          variantsToRemove.add(line.variantId);
-          currentTotal -= lineTotalCost;
-        } else {
-          // Save information for update
-          linesToUpdate.push({
-            ...line,
-            newQuantity: newQuantity,
-          });
-          currentTotal -= line.pointsCost * (line.quantity - newQuantity);
-        }
-      }
-    }
-
-    // First, update item quantities
-    for (const line of linesToUpdate) {
-      await applyCartLinesChange({
-        type: "updateCartLine",
-        cartLineId: line.lineId, // Already processed - extracted from GID if needed
-        quantity: line.newQuantity,
-      });
-    }
-
-    // Remove items from cart
-    for (const line of linesToRemove) {
-      await applyCartLinesChange({
-        type: "removeCartLine",
-        cartLineId: line.lineId, // Already processed - extracted from GID if needed
-      });
-    }
-
-    // Update attributes: remove variantId from list
-    const remainingFreeItems = freeItemsArray.filter(
-      (variantId) => !variantsToRemove.has(variantId),
-    );
-
-    if (remainingFreeItems.length !== freeItemsArray.length) {
-      await shopify.applyAttributeChange({
-        type: "updateAttribute",
-        key: "_loyalty_free_items",
-        value: JSON.stringify(remainingFreeItems),
-      });
-
-      // Update cost map, removing deleted items
-      const remainingPointsMap = {};
-      remainingFreeItems.forEach((variantId) => {
-        if (pointsMap[variantId]) {
-          remainingPointsMap[variantId] = pointsMap[variantId];
-        }
-      });
-
-      await shopify.applyAttributeChange({
-        type: "updateAttribute",
-        key: "_loyalty_points_map",
-        value: JSON.stringify(remainingPointsMap),
-      });
-    }
-
-    // Recalculate total cost after removal
-    totalCostFromCart = currentTotal;
-  }
-
-  const difference = spentPoints - totalCostFromCart;
-  const isMatch = Math.abs(difference) < 0.01;
-
-  if (!isMatch) {
+  if (totalSpent > metafieldsBalance && shopify.applyAttributeChange) {
     await shopify.applyAttributeChange({
       type: "updateAttribute",
-      key: "_loyalty_points_spent",
-      value: String(totalCostFromCart),
+      key: "_loyalty_points_to_redeem",
+      value: "0",
     });
-  }
 
-  if (setBalance) {
-    const sourceBalance =
-      initialBalance !== undefined ? initialBalance : balance;
+    if (setAppliedDiscountPoints) {
+      setAppliedDiscountPoints(0);
+    }
 
-    const finalSpentPoints = isMatch ? spentPoints : totalCostFromCart;
-    const totalSpentPoints = finalSpentPoints + pointsToRedeem;
+    if (setBalance) {
+      const availableBalance = Math.max(0, metafieldsBalance - pointsSpent);
+      setBalance(availableBalance);
+    }
+  } else {
+    if (setAppliedDiscountPoints) {
+      setAppliedDiscountPoints(pointsToRedeem);
+    }
 
-    const newBalance = Math.max(0, sourceBalance - totalSpentPoints);
-
-    if (Math.abs(newBalance - balance) > 0.01) {
-      setBalance(newBalance);
+    if (setBalance) {
+      const availableBalance = Math.max(0, metafieldsBalance - totalSpent);
+      setBalance(availableBalance);
     }
   }
+}
+
+export async function validataAllDataOfLoyalty(
+  shopify,
+  setAppliedDiscountPoints,
+  initialBalance?,
+  setBalance?,
+) {
+  await validateCartWithFreeItems(shopify);
+  await validatePointsBalance(
+    shopify,
+    setAppliedDiscountPoints,
+    initialBalance,
+    setBalance,
+  );
 }

@@ -11,8 +11,10 @@
   "expectedDiscount": "Remise attendue",
   "applyPointsButton": "Appliquer les points",
   "yourEmail": "Votre email",
+  "redeem": "Redeem",
   "components": {
-    "login": "Se connecter"
+    "login": "Se connecter",
+    "cancelRedemption": "Cancel Redemption"
   },
   "errors": {
     "joinAccount": "Vous devez vous connecter pour utiliser les points",

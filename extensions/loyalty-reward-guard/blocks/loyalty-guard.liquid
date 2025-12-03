@@ -7,13 +7,96 @@
 {% endschema %}
 
 {% assign notification_message = 'notification' | t %}
+{%- comment -%} Load selectors from JSON file {%- endcomment -%}
+{%- assign selector_file = 'selector.json' | asset_url -%}
 
 <script>
   (function () {
     const NOTIFICATION_MESSAGE = {{ notification_message | json }};
     const REWARD_ITEMS_CACHE_KEY = 'loyalty_guard_reward_items';
+    const SELECTORS_CACHE_KEY = 'loyalty_guard_selectors';
+    const SELECTORS_URL = '{{ selector_file }}';
+    
+    let selectorsConfig = null;
 
-    // ---------- КЭШ НАГРАДНЫХ ВАРИАНТОВ (variant_id) В localStorage ----------
+    async function loadSelectors() {
+      if (selectorsConfig) return selectorsConfig;
+      
+      try {
+        const cached = localStorage.getItem(SELECTORS_CACHE_KEY);
+        if (cached) {
+          selectorsConfig = JSON.parse(cached);
+          return selectorsConfig;
+        }
+      } catch (e) {}
+
+      try {
+        const response = await fetch(SELECTORS_URL);
+        if (response.ok) {
+          selectorsConfig = await response.json();
+          localStorage.setItem(SELECTORS_CACHE_KEY, JSON.stringify(selectorsConfig));
+          return selectorsConfig;
+        }
+      } catch (e) {
+        console.warn('[Loyalty Guard] Failed to load selectors from JSON:', e);
+      }
+
+      return null;
+    }
+
+    function findElementBySelectors(container, selectorsArray) {
+      if (!selectorsArray || !Array.isArray(selectorsArray)) return null;
+      for (const selector of selectorsArray) {
+        try {
+          const element = container.querySelector(selector);
+          if (element) return element;
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    function findElementsBySelectors(container, selectorsArray) {
+      if (!selectorsArray || !Array.isArray(selectorsArray)) return [];
+      const allElements = [];
+      for (const selector of selectorsArray) {
+        try {
+          const elements = container.querySelectorAll(selector);
+          if (elements.length > 0) {
+            allElements.push(...Array.from(elements));
+          }
+        } catch (e) {}
+      }
+      return allElements;
+    }
+
+    function getVariantId(element, selectorsConfig) {
+      if (!element || !selectorsConfig) return null;
+      
+      const variantIdAttrs = selectorsConfig?.variantIdAttribute || ["data-variant-id"];
+      
+      for (const attr of variantIdAttrs) {
+        let variantId = element.getAttribute(attr);
+        if (!variantId) variantId = element.getAttribute(`data-${attr}`);
+        if (variantId) return variantId;
+      }
+      
+      return element.getAttribute("data-variant-id");
+    }
+
+    function getVariantIdFromParent(button, selectorsConfig) {
+      let current = button.parentElement;
+      const maxDepth = 10;
+      let depth = 0;
+      
+      while (current && depth < maxDepth) {
+        const variantId = getVariantId(current, selectorsConfig);
+        if (variantId) return variantId;
+        current = current.parentElement;
+        depth++;
+      }
+      
+      return null;
+    }
 
     function getRewardItemsCache() {
       try {
@@ -30,8 +113,6 @@
       } catch (e) {}
     }
 
-    // ---------- ЧТЕНИЕ КОРЗИНЫ /cart.js ----------
-
     async function getCart() {
       try {
         return await fetch("/cart.js").then(r => r.json());
@@ -40,24 +121,27 @@
       }
     }
 
-    // ---------- ИНИЦИАЛИЗАЦИЯ КЭША НАГРАДНЫХ ТОВАРОВ ----------
-
     async function initializeRewardItemsCache() {
       const cart = await getCart();
       const rewardVariantIds = [];
 
-      // 1) Варианты из cart.attributes._loyalty_free_items (GID-список)
       if (cart.attributes && cart.attributes._loyalty_free_items) {
         try {
           const freeItems = JSON.parse(cart.attributes._loyalty_free_items);
-          freeItems.forEach(gid => {
-            const variantId = gid.split('/').pop();
-            if (variantId) rewardVariantIds.push(String(variantId));
-          });
+          if (Array.isArray(freeItems)) {
+            freeItems.forEach(gid => {
+              const variantId = gid.split('/').pop();
+              if (variantId) rewardVariantIds.push(String(variantId));
+            });
+          } else if (typeof freeItems === 'object' && freeItems !== null) {
+            Object.keys(freeItems).forEach(gid => {
+              const variantId = gid.split('/').pop();
+              if (variantId) rewardVariantIds.push(String(variantId));
+            });
+          }
         } catch (e) {}
       }
 
-      // 2) Варианты по тегу reward_item
       for (const item of cart.items || []) {
         if (!item.product || !item.product.tags) continue;
 
@@ -78,18 +162,14 @@
 
     initializeRewardItemsCache();
 
-    // При обновлении корзины (если тема триггерит это событие) — обновляем кэш
     document.addEventListener('cart:updated', function() {
       initializeRewardItemsCache();
-      lockRewardQtyUI(); // на всякий случай заново блокируем UI
+      lockRewardQtyUI();
     });
-
-    // ---------- ПРОВЕРКА, ЧТО ТОВАР — НАГРАДНЫЙ ----------
 
     async function hasRewardTag(item) {
       if (!item) return false;
 
-      // 1) быстрый путь через localStorage кэш
       const cachedRewardItems = getRewardItemsCache();
       if (cachedRewardItems.includes(String(item.variant_id))) {
         return true;
@@ -97,13 +177,19 @@
 
       const cart = await getCart();
 
-      // 2) через cart.attributes._loyalty_free_items
       if (cart.attributes && cart.attributes._loyalty_free_items) {
         try {
           const freeItems = JSON.parse(cart.attributes._loyalty_free_items);
           const variantGid = `gid://shopify/ProductVariant/${item.variant_id}`;
 
-          if (freeItems.includes(variantGid)) {
+          let isFreeItem = false;
+          if (Array.isArray(freeItems)) {
+            isFreeItem = freeItems.includes(variantGid);
+          } else if (typeof freeItems === 'object' && freeItems !== null) {
+            isFreeItem = freeItems[variantGid] !== undefined && freeItems[variantGid] > 0;
+          }
+
+          if (isFreeItem) {
             if (!cachedRewardItems.includes(String(item.variant_id))) {
               cachedRewardItems.push(String(item.variant_id));
               setRewardItemsCache(cachedRewardItems);
@@ -113,13 +199,11 @@
         } catch (e) {}
       }
 
-      // 3) проверка тегов (если есть в item.product)
       let tagsToCheck = null;
 
       if (item.product && item.product.tags) {
         tagsToCheck = item.product.tags;
       } else {
-        // fallback: запрос /products/{handle}.js
         try {
           const productHandle =
             item.handle ||
@@ -157,21 +241,16 @@
       return false;
     }
 
-    // ---------- ПОЛУЧИТЬ ИНФО ПО ТОВАРУ ДЛЯ ИЗМЕНЕНИЯ КОЛИЧЕСТВА ----------
-
     async function checkRewardItem(keyOrLine, quantity) {
       const cart = await getCart();
       let item = null;
 
       if (typeof keyOrLine === "string" && keyOrLine.startsWith("gid://")) {
-        // variant GID (резерв)
         const variantId = parseInt(keyOrLine.split("/").pop(), 10);
         item = cart.items.find(i => i.variant_id === variantId);
       } else if (typeof keyOrLine === "string") {
-        // key строки
         item = cart.items.find(i => i.key === keyOrLine);
       } else if (typeof keyOrLine === "number") {
-        // line номер
         item = cart.items[keyOrLine - 1];
       }
 
@@ -188,107 +267,106 @@
       };
     }
 
-    // ---------- ЛОГИКА: НУЖНО ЛИ БЛОКИРОВАТЬ ----------
-
     function shouldBlock(check) {
       if (!check || !check.isReward) return false;
 
       const { requestedQty, currentQty } = check;
 
-      // Разрешаем:
-      if (requestedQty === 0) return false;            // удаление
-      if (requestedQty < currentQty) return false;     // уменьшение
-      if (requestedQty === currentQty) return false;   // без изменений
+      if (requestedQty === 0) return false;
+      if (requestedQty < currentQty) return false;
+      if (requestedQty === currentQty) return false;
 
-      // Блокируем только увеличение
       if (requestedQty > currentQty) return true;
 
       return false;
     }
 
-    // ---------- UI: БЛОКИРУЕМ КНОПКИ / INPUT ДЛЯ НАГРАДНЫХ ТОВАРОВ ----------
-
-    function lockRewardQtyUI() {
+    async function lockRewardQtyUI() {
       const rewardVariantIds = getRewardItemsCache();
       if (!rewardVariantIds.length) return;
 
-      // Попытка покрыть OS 2.0 темы (Dawn и подобные)
-      const cartItems = document.querySelectorAll("[data-cart-item], .cart-item, .cart-item__outer");
+      const config = await loadSelectors();
+      if (!config) return;
 
-      cartItems.forEach(itemEl => {
-        if (itemEl.dataset.loyaltyGuardLocked === "true") return;
+      const buttonPlusSelectors = config?.buttonPlus;
+      if (!buttonPlusSelectors) return;
+      
+      const allButtons = findElementsBySelectors(document, buttonPlusSelectors);
 
-        let variantId = itemEl.getAttribute("data-variant-id");
+      allButtons.forEach(plusButton => {
+        if (plusButton.dataset.loyaltyGuardLocked === "true") return;
 
-        if (!variantId) {
-          const idInput = itemEl.querySelector('input[name="id"]');
-          if (idInput && idInput.value) {
-            variantId = idInput.value;
-          }
-        }
+        const variantId = getVariantIdFromParent(plusButton, config);
+        if (!variantId || !rewardVariantIds.includes(String(variantId))) return;
 
-        if (!variantId) return;
-
-        if (!rewardVariantIds.includes(String(variantId))) return;
-
-        // помечаем как обработанный
-        itemEl.dataset.loyaltyGuardLocked = "true";
-
-        // Блокируем + кнопки
-        const buttons = itemEl.querySelectorAll("button");
-        buttons.forEach(btn => {
-          const label = btn.getAttribute("aria-label") || "";
-          const text = btn.textContent.trim();
-          const name = btn.getAttribute("name") || "";
-
-          const isPlus =
-            name.toLowerCase() === "plus" ||
-            label.toLowerCase().includes("increase") ||
-            label.toLowerCase().includes("augmenter") ||
-            text === "+" ||
-            btn.classList.contains("quantity__button--plus");
-
-          if (isPlus) {
-            btn.disabled = true;
-            btn.style.opacity = "0.5";
-            btn.style.cursor = "not-allowed";
-          }
-        });
-
-        // Блокируем ручной ввод
-        const qtyInputs = itemEl.querySelectorAll('input[type="number"], input[name^="updates"]');
-        qtyInputs.forEach(inp => {
-          inp.readOnly = true;
-          inp.style.background = "#f6f6f6";
-          inp.style.cursor = "not-allowed";
-        });
-
-        // Маленький визуальный маркер (можно удалить)
-        itemEl.style.position = itemEl.style.position || "relative";
-        const lock = document.createElement("div");
-        lock.textContent = "🔒";
-        lock.style.position = "absolute";
-        lock.style.right = "6px";
-        lock.style.top = "4px";
-        lock.style.fontSize = "14px";
-        lock.style.opacity = "0.8";
-        itemEl.appendChild(lock);
+        plusButton.dataset.loyaltyGuardLocked = "true";
+        plusButton.disabled = true;
+        plusButton.style.opacity = "0.5";
+        plusButton.style.cursor = "not-allowed";
+        
+        plusButton.addEventListener("click", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          alert(NOTIFICATION_MESSAGE);
+          return false;
+        }, true);
       });
     }
 
-    // Первый запуск UI-блокировки
-    document.addEventListener("DOMContentLoaded", lockRewardQtyUI);
-
-    // Трекаем динамические изменения (drawer-cart, AJAX обновления)
-    const observer = new MutationObserver(() => {
+    function runLockUI() {
       lockRewardQtyUI();
+      requestAnimationFrame(lockRewardQtyUI);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", runLockUI);
+    } else {
+      runLockUI();
+    }
+
+    let timeoutId;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(lockRewardQtyUI, 10);
     });
     observer.observe(document.documentElement || document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true
     });
 
-    // ---------- ПЕРЕХВАТ FETCH ----------
+    document.addEventListener("click", async function(e) {
+      const target = e.target;
+      
+      const config = await loadSelectors();
+      if (!config) return;
+      const buttonPlusSelectors = config.buttonPlus;
+      if (!buttonPlusSelectors) return;
+      
+      let plusButton = null;
+      for (const selector of buttonPlusSelectors) {
+        try {
+          plusButton = target.closest(selector);
+          if (plusButton) break;
+        } catch (e) {}
+      }
+      
+      if (!plusButton) return;
+      
+      const variantId = getVariantIdFromParent(plusButton, config);
+      if (!variantId) return;
+      
+      const rewardVariantIds = getRewardItemsCache();
+      if (rewardVariantIds.includes(String(variantId))) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        alert(NOTIFICATION_MESSAGE);
+        lockRewardQtyUI();
+        return false;
+      }
+    }, true);
 
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
@@ -366,8 +444,6 @@
 
       return originalFetch(...args);
     };
-
-    // ---------- ПЕРЕХВАТ XHR (Drawer-cart и старые темы) ----------
 
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url) {

@@ -19,10 +19,6 @@ uid = "fddfc370-27c7-c30f-4ee0-a927194e2accadefd40c"
 module = "./src/Checkout.jsx"
 target = "purchase.checkout.cart-line-list.render-after"
 
-[[extensions.targeting]]
-target = "purchase.checkout.cart-line-list.render-before"
-module = "./src/validateSystem.tsx"
-
 [extensions.capabilities]
 # Gives your extension access to directly query Shopify’s storefront API.
 # https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration#api-access

@@ -28,13 +28,53 @@ export function cartLinesDiscountsGenerateRun(
   const POINTS_PER_EURO = 100;
 
   if (hasProductDiscountClass) {
-    // @ts-ignore
     const freeItemsAttr = input.cart.freeItemsAttr;
-    let freeItemsVariantIds: string[] = [];
+    let freeItemsMap: Record<string, { quantity: number; spent: number }> = {};
 
     if (freeItemsAttr?.value) {
       try {
-        freeItemsVariantIds = JSON.parse(freeItemsAttr.value);
+        const parsed = JSON.parse(freeItemsAttr.value);
+        if (
+          typeof parsed === "object" &&
+          !Array.isArray(parsed) &&
+          parsed !== null
+        ) {
+          Object.entries(parsed).forEach(([key, value]) => {
+            if (typeof key === "string" && key.length > 0) {
+              if (
+                typeof value === "object" &&
+                value !== null &&
+                !Array.isArray(value)
+              ) {
+                const data = value as any;
+                if (
+                  typeof data.quantity === "number" &&
+                  typeof data.spent === "number" &&
+                  data.quantity > 0
+                ) {
+                  freeItemsMap[key] = {
+                    quantity: data.quantity,
+                    spent: data.spent,
+                  };
+                }
+              } else if (typeof value === "number" && value > 0) {
+                freeItemsMap[key] = {
+                  quantity: value,
+                  spent: 0,
+                };
+              }
+            }
+          });
+        } else if (Array.isArray(parsed)) {
+          parsed.forEach((variantId: string) => {
+            if (typeof variantId === "string" && variantId.length > 0) {
+              freeItemsMap[variantId] = {
+                quantity: 1,
+                spent: 0,
+              };
+            }
+          });
+        }
       } catch (e) {}
     }
 
@@ -43,7 +83,10 @@ export function cartLinesDiscountsGenerateRun(
         return false;
       }
       const variantId = line.merchandise.id;
-      return freeItemsVariantIds.includes(variantId);
+      return (
+        freeItemsMap[variantId] !== undefined &&
+        freeItemsMap[variantId].quantity > 0
+      );
     });
 
     if (freeProductLines.length > 0) {
@@ -73,7 +116,6 @@ export function cartLinesDiscountsGenerateRun(
   }
 
   if (hasOrderDiscountClass) {
-    // @ts-ignore
     const pointsToRedeemAttr = input.cart.pointsToRedeemAttr;
 
     if (pointsToRedeemAttr?.value) {
