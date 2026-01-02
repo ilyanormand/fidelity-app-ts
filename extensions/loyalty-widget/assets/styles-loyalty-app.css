@@ -8,15 +8,18 @@
   --color-button-hover: #bbbbbb;
   --color-text-button: #000000;
 }
+
 .shopify-block {
   width: 100%;
 }
+
 .loyalty-navbar-title {
   margin-left: 12px;
   font-size: 24px;
   font-weight: 700;
   font-family: "Barlow", sans-serif;
 }
+
 .loyalty-navbar-title p {
   margin: 0px;
 }
@@ -35,6 +38,7 @@
   box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
   width: 945px;
 }
+
 .loyalty-navbar {
   flex-shrink: 0;
   padding: 15px 0px;
@@ -201,9 +205,11 @@
     flex-direction: column;
     align-items: center;
   }
+
   .shopify-block {
     width: 321px;
   }
+
   .loyalty-spa-container {
     width: 100%;
     padding: 0px;
@@ -230,4 +236,5 @@
   #loyalty-page-content {
     padding: 20px 10px;
   }
+}
 }
