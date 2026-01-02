@@ -4,6 +4,98 @@
       <div data="div-content" class="loyalty-page" id="earn-points-content" style="display: block;">
         {% render 'earn-points-content' %}
       </div>
+    <div class="loyalty-navbar">
+      <div class="loyalty-navbar-title">
+        <p>Name person 3</p>
+        <p>Points: 100</p>
+        {% comment %}
+          {% if customer %}
+            <p>{{ customer.first_name }}!</p>
+          {% else %}
+             <script>
+              window.location.href = "/account/login";
+            </script>
+          {% endif %}
+        {% endcomment %}
+      </div>
+      <div class="loyalty-navbar-buttons">
+        <button class="nav-btn" data-page="my-program-content">
+          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_program' | t }}
+        </button>
+        <button class="nav-btn" data-page="earn-points-content">
+          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.earn_points' | t }}
+        </button>
+        <button class="nav-btn" data-page="change_points-content">
+          <img
+            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            alt=""
+            class="nav-icon"
+            width="32"
+            height="32"
+          >
+          {{ 'loyalty_widget.navbar.change_points' | t }}
+        </button>
+        <button class="nav-btn" data-page="my-rewards-content">
+          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+        </button>
+      </div>
+    </div>
+
+    {% comment %} Mobile burger menu {% endcomment %}
+    <div class="loyalty-navbar-mobile">
+      <div class="mobile-header">
+        <button class="burger-btn" id="burger-toggle" aria-label="Toggle menu">
+          <span class="burger-line"></span>
+          <span class="burger-line"></span>
+          <span class="burger-line"></span>
+        </button>
+        <div class="loyalty-navbar-title">
+          <p>Name person</p>
+          <p>Points: 100</p>
+        </div>
+      </div>
+      <div class="mobile-menu" id="mobile-menu">
+        <button class="nav-btn" data-page="my-program-content">
+          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_program' | t }}
+        </button>
+        <button class="nav-btn" data-page="earn-points-content">
+          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.earn_points' | t }}
+        </button>
+        <button class="nav-btn" data-page="change_points-content">
+          <img
+            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            alt=""
+            class="nav-icon"
+            width="32"
+            height="32"
+          >
+          {{ 'loyalty_widget.navbar.change_points' | t }}
+        </button>
+        <button class="nav-btn" data-page="my-rewards-content">
+          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+        </button>
+      </div>
+    </div>
+
+    <div id="loyalty-page-content">
+      <div data="div-content" class="loyalty-page" id="my-program-content" style="display: block;">
+        {% render 'my-program-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="earn-points-content" style="display: none;">
+        {% render 'earn-points-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="change_points-content" style="display: none;">
+        {% render 'change-points-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="my-rewards-content" style="display: none;">
+        {% render 'my-rewards-content' %}
+      </div>
     </div>
   </div>
 </div>
@@ -19,6 +111,8 @@
 
 <script src="{{ 'loyalty-app.js' | asset_url }}" defer></script>
 <script src="{{ 'loader-earn-points.js' | asset_url }}" defer></script>
+<script src="{{ 'loader-my-program.js' | asset_url }}" defer></script>
+
 <link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
 
 {% schema %}
