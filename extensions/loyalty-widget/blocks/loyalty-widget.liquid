@@ -1,10 +1,25 @@
-<div id="loyalty-spa-root">
+<div id="loyalty-spa-root" 
+  {% if block.settings.background_image %}
+  style="
+    background-image: url('{{ block.settings.background_image | image_url }}');
+    {% if block.settings.background_size == 'custom' %}
+      background-size: {{ block.settings.background_size_custom }}%;
+    {% else %}
+      background-size: {{ block.settings.background_size }};
+    {% endif %}
+    background-position: {{ block.settings.background_position_x }}px {{ block.settings.background_position_y }}px;
+    {% if block.settings.background_repeat %}
+      background-repeat: repeat;
+    {% else %}
+      background-repeat: no-repeat;
+    {% endif %}
+  "
+  {% endif %}>
   <div class="loyalty-spa-container">
 
     <div class="loyalty-navbar">
       <div class="loyalty-navbar-title">
-        <p>Name person 3</p>
-        <p>Points: 100</p>
+        <p>Name person</p>
         {% comment %}
           {% if customer %}
             <p>{{ customer.first_name }}!</p>
@@ -14,6 +29,10 @@
             </script>
           {% endif %}
         {% endcomment %}
+      </div>
+      <div class="loyalty-navbar-points">
+        <p>421</p>
+        <p>points</p>
       </div>
       <div class="loyalty-navbar-buttons">
         <button class="nav-btn" data-page="my-program-content">
@@ -119,6 +138,77 @@
 {
   "name": "Loyalty Widget",
   "target": "section",
-  "settings": []
+  "settings": [
+    {
+      "type": "header",
+      "content": "Background Image"
+    },
+    {
+      "type": "image_picker",
+      "id": "background_image",
+      "label": "Image"
+    },
+    {
+      "type": "select",
+      "id": "background_size",
+      "label": "Background Size",
+      "options": [
+        {
+          "value": "cover",
+          "label": "Cover (recommended)"
+        },
+        {
+          "value": "contain",
+          "label": "Contain"
+        },
+        {
+          "value": "auto",
+          "label": "Auto"
+        },
+        {
+          "value": "custom",
+          "label": "Custom"
+        }
+      ],
+      "default": "cover"
+    },
+    {
+      "type": "range",
+      "id": "background_size_custom",
+      "min": 10,
+      "max": 200,
+      "step": 5,
+      "unit": "%",
+      "label": "Custom Size",
+      "default": 100,
+      "info": "Only applies when 'Custom' is selected"
+    },
+    {
+      "type": "range",
+      "id": "background_position_x",
+      "min": -500,
+      "max": 500,
+      "step": 10,
+      "unit": "px",
+      "label": "Position X (horizontal)",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "background_position_y",
+      "min": -500,
+      "max": 500,
+      "step": 10,
+      "unit": "px",
+      "label": "Position Y (vertical)",
+      "default": 0
+    },
+    {
+      "type": "checkbox",
+      "id": "background_repeat",
+      "label": "Repeat Background",
+      "default": false
+    }
+  ]
 }
 {% endschema %}

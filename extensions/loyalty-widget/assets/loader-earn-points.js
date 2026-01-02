@@ -67,7 +67,6 @@ function renderEarnPointsTasks(tasks) {
           <p>${task.reward + " points"}</p>
           <p>${task.task}</p>
         </div>
-        <div style="flex: 1;"></div>
         <a href="${task.link}" class="task-button">${task.textButton}</a>
       </div>
     `,

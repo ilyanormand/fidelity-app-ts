@@ -12,6 +12,7 @@
   width: 100%;
 }
 .loyalty-navbar-title {
+  color: #000000;
   margin-left: 12px;
   font-size: 24px;
   font-weight: 700;
@@ -21,14 +22,35 @@
 .loyalty-navbar-title p {
   margin: 0px;
 }
+.loyalty-navbar-points {
+  margin-left: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.loyalty-navbar-points p:first-child {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: "Barlow", sans-serif;
+}
+
+.loyalty-navbar-points p:last-child {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: "Barlow", sans-serif;
+  padding-bottom: 2px;
+}
 
 #loyalty-spa-root {
   display: flex;
   justify-content: center;
   gap: 10px;
+  /* Background properties controlled via Shopify block settings */
 }
 
 .loyalty-spa-container {
+  background-color: white;
   margin: 50px 0px;
   padding: 28px 25px;
   display: flex;
@@ -225,6 +247,7 @@
   }
 
   .loyalty-navbar-mobile .loyalty-navbar-title p {
+    color: #000000;
     font-size: 24px;
     font-weight: 700;
     font-family: var(--font-family-basic), sans-serif;

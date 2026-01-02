@@ -12,6 +12,7 @@
   line-height: 100%;
   letter-spacing: 0%;
   margin-bottom: 10px;
+  color: #000000;
 }
 
 .my-rewards-features {
@@ -29,6 +30,7 @@
   line-height: 1.1;
   letter-spacing: 0%;
   margin: 0;
+  color: #000000;
 }
 
 /* My Rewards list container */
@@ -89,6 +91,10 @@
   height: 100%;
   position: relative;
   z-index: 1;
+}
+.my-reward-card-content h4,
+.my-reward-card-content p {
+  color: #000000;
 }
 
 /* Hover show only button */
@@ -203,7 +209,6 @@
 }
 
 .use-reward-btn.code-revealed:hover {
-  background-color: var(--color-primary);
   filter: brightness(0.95);
 }
 

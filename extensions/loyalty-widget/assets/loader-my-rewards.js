@@ -75,7 +75,7 @@ function renderMyRewards(rewards) {
           <h4>Bon d'achat de ${reward.discountAmount}</h4>
           <p style="font-size: 12px; margin-bottom: 10px;">Expire le ${reward.expiryDate}</p>
           <button class="use-reward-btn ${reward.used ? "disabled" : ""}" ${reward.used ? "disabled" : ""}>
-            ${reward.used ? "Utilisé" : "Utiliser"}
+            ${reward.used ? "Utilisé" : "J’utilise ma réduction"}
           </button>
         </div>
         <div class="my-reward-card-hover">

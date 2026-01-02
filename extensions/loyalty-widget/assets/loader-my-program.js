@@ -57,8 +57,10 @@ function renderMyProgramTasks(tasks) {
           height="33"
           onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3C/svg%3E'"
         >
-        <p>${task.reward + " points"}</p>
-        <p>${task.task}</p>
+        <div class="task-card-content">
+          <p>${task.reward + " points"}</p>
+          <p>${task.task}</p>
+        </div>
       </div>
     `,
     )

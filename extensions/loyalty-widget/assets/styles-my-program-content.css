@@ -20,7 +20,7 @@
   font-weight: 700;
   font-size: 16px;
   line-height: 1.5;
-  color: #333;
+  color: #000000;
   margin: 0;
 }
 
@@ -57,7 +57,7 @@
   border-radius: 20px;
   background-color: var(--color-basic);
   display: flex;
-  padding: 10px 0px;
+  padding: 10px;
   flex-direction: column;
   align-items: center;
   justify-content: space-around;
@@ -95,8 +95,8 @@
   z-index: 10;
   -webkit-text-stroke: 0.5px #2c2c2c;
 }
-.task-card p {
-  margin: 0;
+.task-card-content p {
+  color: #000000;
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-style: Bold;
@@ -105,11 +105,11 @@
   letter-spacing: 0%;
   text-align: center;
 }
-.task-card p:first-of-type {
+.task-card-content p:first-of-type {
   font-size: 16px;
   margin-bottom: 5px;
 }
-.task-card p:last-of-type {
+.task-card-content p:last-of-type {
   font-size: 12px;
 }
 
@@ -128,6 +128,7 @@
   .task-card {
     width: 100%;
     max-width: 300px;
+    padding: 10px 5px;
   }
 
   .task-card.completed::after {
@@ -144,7 +145,7 @@
     line-height: 20px;
   }
 
-  .task-card p {
+  .task-card-content p {
     margin: 0;
     font-family: var(--font-family-basic), sans-serif;
     font-weight: 700;
@@ -154,11 +155,11 @@
     letter-spacing: 0%;
     text-align: center;
   }
-  .task-card p:first-of-type {
+  .task-card-content p:first-of-type {
     font-size: 14px;
     margin-bottom: 5px;
   }
-  .task-card p:last-of-type {
+  .task-card-content p:last-of-type {
     font-size: 10px;
   }
 }
