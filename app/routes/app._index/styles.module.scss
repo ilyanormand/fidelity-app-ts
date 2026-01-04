@@ -1,0 +1,13 @@
+.chartAndStatus {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.chartSection {
+  min-width: 0;
+}
+
+.statusSection {
+  min-width: 0;
+}
