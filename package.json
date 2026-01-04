@@ -61,6 +61,7 @@
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
     "sass-embedded": "^1.93.3",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vite": "^6.3.6"
   },
@@ -73,5 +74,8 @@
   "overrides": {
     "p-map": "^4.0.0"
   },
-  "author": "ilya"
+  "author": "ilya",
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  }
 }
