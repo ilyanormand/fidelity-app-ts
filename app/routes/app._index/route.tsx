@@ -4,6 +4,7 @@ import { authenticate } from "../../shopify.server";
 import { PointsCVD } from "../components/pointsCVD/PointsCVD";
 import { GeneralStatistics } from "../components/generalStatistics/GeneralStatistics";
 import { SystemStatus } from "../components/systemStatus/SystemStatus";
+import { LatestOperations } from "../components/latestOperations/LatestOperations";
 import { getPointsStats } from "../utils/getPointsStats.server";
 import styles from "./styles.module.scss";
 import {
@@ -11,7 +12,6 @@ import {
   BlockStack,
   Text,
   Button,
-  Link,
   Page,
 } from "@shopify/polaris";
 import { checkSystem } from "../utils/checkSystem";
@@ -127,35 +127,42 @@ export default function Dashboard() {
           </div>
         </div>
         <BlockStack gap="400">
-          <Text as="h3" variant="headingLg">
-            Latest operations
-          </Text>
-          <InlineStack gap="200">
-            <Button
-              onClick={() => handleRangeChange("1d")}
-              variant={range === "1d" ? "primary" : "secondary"}
-            >
-              1 day
-            </Button>
-            <Button
-              onClick={() => handleRangeChange("7d")}
-              variant={range === "7d" ? "primary" : "secondary"}
-            >
-              7 days
-            </Button>
-            <Button
-              onClick={() => handleRangeChange("14d")}
-              variant={range === "14d" ? "primary" : "secondary"}
-            >
-              14 days
-            </Button>
-            <Button
-              onClick={() => handleRangeChange("30d")}
-              variant={range === "30d" ? "primary" : "secondary"}
-            >
-              30 days
-            </Button>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h3" variant="headingLg">
+              Latest operations
+            </Text>
+            <InlineStack gap="200">
+              <Button
+                onClick={() => handleRangeChange("1d")}
+                variant={range === "1d" ? "primary" : "secondary"}
+                size="slim"
+              >
+                1 day
+              </Button>
+              <Button
+                onClick={() => handleRangeChange("7d")}
+                variant={range === "7d" ? "primary" : "secondary"}
+                size="slim"
+              >
+                7 days
+              </Button>
+              <Button
+                onClick={() => handleRangeChange("14d")}
+                variant={range === "14d" ? "primary" : "secondary"}
+                size="slim"
+              >
+                14 days
+              </Button>
+              <Button
+                onClick={() => handleRangeChange("30d")}
+                variant={range === "30d" ? "primary" : "secondary"}
+                size="slim"
+              >
+                30 days
+              </Button>
+            </InlineStack>
           </InlineStack>
+          <LatestOperations limit={10} />
         </BlockStack>
       </BlockStack>
     </Page>
