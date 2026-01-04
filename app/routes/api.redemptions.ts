@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { randomUUID } from "crypto";
+import { serialize } from "../utils/serialize";
 
 // GET /api/redemptions - Get redemptions
 export const loader = async ({ request }: LoaderFunctionArgs) => {

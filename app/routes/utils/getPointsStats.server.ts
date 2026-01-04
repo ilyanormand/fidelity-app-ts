@@ -1,24 +1,33 @@
 import { format } from "date-fns";
 import { getPeriod } from "./getPeriod";
+import prisma from "../../db.server";
 
 export async function getPointsStats(shopId: string, range: string = "30d") {
   const { start, end, interval } = getPeriod(range);
 
-  // Generate ~100 mock transactions distributed within the period
-  const mockTransactions = Array.from({ length: 100 }, () => {
-    const timeSpan = end.getTime() - start.getTime();
-    const randomTime = start.getTime() + Math.random() * timeSpan;
-    return {
-      createdAt: new Date(randomTime),
-      points: Math.floor(Math.random() * 100) + 10, // 10 to 110 points
-    };
+  // Fetch ledger entries within the date range
+  const ledgerEntries = await prisma.ledger.findMany({
+    where: {
+      createdAt: {
+        gte: start,
+        lte: end,
+      },
+      customer: { shopId },
+    },
+    select: {
+      createdAt: true,
+      amount: true,
+    },
   });
 
   // Aggregate transactions by bucket
-  const mapValues = new Map<string, number>();
+  const creditMap = new Map<string, number>();
+  const debitMap = new Map<string, number>();
 
-  for (const t of mockTransactions) {
-    const bucket = new Date(t.createdAt);
+  for (const entry of ledgerEntries) {
+    if (!entry.createdAt) continue;
+
+    const bucket = new Date(entry.createdAt);
     if (interval === "hour") {
       bucket.setUTCMinutes(0, 0, 0);
     } else {
@@ -26,8 +35,14 @@ export async function getPointsStats(shopId: string, range: string = "30d") {
     }
 
     const iso = bucket.toISOString();
-    const current = mapValues.get(iso) ?? 0;
-    mapValues.set(iso, current + t.points);
+
+    if (entry.amount >= 0) {
+      const current = creditMap.get(iso) ?? 0;
+      creditMap.set(iso, current + entry.amount);
+    } else {
+      const current = debitMap.get(iso) ?? 0;
+      debitMap.set(iso, current + Math.abs(entry.amount));
+    }
   }
 
   const data = [];
@@ -46,11 +61,17 @@ export async function getPointsStats(shopId: string, range: string = "30d") {
 
   while (cursor <= endNormalized) {
     const iso = cursor.toISOString();
-    const value = mapValues.get(iso) ?? 0;
+    const credited = creditMap.get(iso) ?? 0;
+    const debited = debitMap.get(iso) ?? 0;
     const label =
       interval === "hour" ? format(cursor, "HH:mm") : format(cursor, "MMM d");
 
-    data.push({ name: label, value });
+    data.push({
+      name: label,
+      value: credited, // For backwards compatibility
+      credited,
+      debited,
+    });
 
     if (interval === "hour") {
       cursor.setUTCHours(cursor.getUTCHours() + 1);
@@ -59,10 +80,41 @@ export async function getPointsStats(shopId: string, range: string = "30d") {
     }
   }
 
-  // Generate random percentage
-  const randomChange = (Math.random() * 200 - 100).toFixed(1); // -100 to +100
-  const sign = Number(randomChange) >= 0 ? "+" : "";
-  const percentage = `${sign}${randomChange}%`;
+  // Calculate total for current period
+  const currentTotal = ledgerEntries
+    .filter((e) => e.amount > 0)
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  // Get previous period for comparison
+  const periodLength = end.getTime() - start.getTime();
+  const previousStart = new Date(start.getTime() - periodLength);
+  const previousEnd = new Date(start.getTime() - 1);
+
+  const previousEntries = await prisma.ledger.findMany({
+    where: {
+      createdAt: {
+        gte: previousStart,
+        lte: previousEnd,
+      },
+      customer: { shopId },
+      amount: { gt: 0 },
+    },
+    select: {
+      amount: true,
+    },
+  });
+
+  const previousTotal = previousEntries.reduce((sum, e) => sum + e.amount, 0);
+
+  // Calculate percentage change
+  let percentage: string;
+  if (previousTotal === 0) {
+    percentage = currentTotal > 0 ? "+100%" : "0%";
+  } else {
+    const change = ((currentTotal - previousTotal) / previousTotal) * 100;
+    const sign = change >= 0 ? "+" : "";
+    percentage = `${sign}${change.toFixed(1)}%`;
+  }
 
   return {
     range,

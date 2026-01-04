@@ -3,8 +3,12 @@ import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
 
+// Change this to your actual Shopify store domain
+const SHOP_ID = process.env.SEED_SHOP_ID || "fwn-test-store.myshopify.com";
+
 async function main() {
   console.log("🌱 Starting seed...");
+  console.log(`📍 Using shop ID: ${SHOP_ID}`);
 
   // Clear existing data
   await prisma.redemption.deleteMany();
@@ -17,7 +21,7 @@ async function main() {
     prisma.customer.create({
       data: {
         shopifyCustomerId: "7891234567890",
-        shopId: "my-test-shop.myshopify.com",
+        shopId: SHOP_ID,
         currentBalance: 1500,
         customerTags: ["VIP", "Early Adopter"],
       },
@@ -25,7 +29,7 @@ async function main() {
     prisma.customer.create({
       data: {
         shopifyCustomerId: "7891234567891",
-        shopId: "my-test-shop.myshopify.com",
+        shopId: SHOP_ID,
         currentBalance: 750,
         customerTags: ["Regular"],
       },
@@ -33,7 +37,7 @@ async function main() {
     prisma.customer.create({
       data: {
         shopifyCustomerId: "7891234567892",
-        shopId: "my-test-shop.myshopify.com",
+        shopId: SHOP_ID,
         currentBalance: 3200,
         customerTags: ["VIP", "Ambassador"],
       },
@@ -41,7 +45,7 @@ async function main() {
     prisma.customer.create({
       data: {
         shopifyCustomerId: "7891234567893",
-        shopId: "my-test-shop.myshopify.com",
+        shopId: SHOP_ID,
         currentBalance: 200,
         customerTags: [],
       },
@@ -49,7 +53,7 @@ async function main() {
     prisma.customer.create({
       data: {
         shopifyCustomerId: "7891234567894",
-        shopId: "my-test-shop.myshopify.com",
+        shopId: SHOP_ID,
         currentBalance: 5000,
         customerTags: ["VIP", "Influencer", "Top Spender"],
       },

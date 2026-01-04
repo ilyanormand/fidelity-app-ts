@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { serialize } from "../utils/serialize";
 
 // GET /api/ledger - Get ledger entries
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -37,14 +38,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       _count: true,
     });
 
-    return Response.json({
+    return Response.json(serialize({
       entries,
       count: entries.length,
       totals: {
         sum: totals._sum.amount || 0,
         count: totals._count,
       },
-    });
+    }));
   } catch (error) {
     console.error("Error fetching ledger:", error);
     return Response.json({ error: "Failed to fetch ledger entries" }, { status: 500 });
@@ -103,11 +104,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
 
       return Response.json(
-        {
+        serialize({
           entry: result.entry,
           newBalance: result.updatedCustomer.currentBalance,
           message: amount > 0 ? "Points added" : "Points deducted",
-        },
+        }),
         { status: 201 }
       );
     }

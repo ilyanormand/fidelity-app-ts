@@ -22,12 +22,11 @@ import { CustomerSearch } from "../../components/customeSearch/CustomerSearch";
 import styles from "./styles.module.scss";
 import { getCustomers } from "../../utils/getCustomers";
 
-console.log("Loaded styles:", styles);
+type Customer = Awaited<ReturnType<typeof getCustomers>>[number];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shopId = session.shop;
-  const url = new URL(request.url);
   const customers = await getCustomers(shopId);
 
   return { customers };
@@ -46,7 +45,7 @@ export default function Customers() {
     setPage(0);
   }, []);
 
-  const filtered = customers.filter((c) =>
+  const filtered = customers.filter((c: Customer) =>
     `${c.name} ${c.email}`.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -63,7 +62,7 @@ export default function Customers() {
     }
   };
 
-  const rows = filtered.map((c) => [
+  const rows = filtered.map((c: Customer) => [
     <div key={c.email}>
       <Text as="span" fontWeight="medium">
         {c.name}
@@ -74,11 +73,11 @@ export default function Customers() {
       </Text>
     </div>,
 
-    c.currentBalance.toLocaleString(),
-    c.shopifyBalance.toLocaleString(),
+    c.currentBalance.toLocaleString("en-US"),
+    c.shopifyBalance.toLocaleString("en-US"),
     statusBadge(c.status),
-    c.totalEarned.toLocaleString(),
-    c.totalSpent.toLocaleString(),
+    c.totalEarned.toLocaleString("en-US"),
+    c.totalSpent.toLocaleString("en-US"),
 
     <Link
       to={`/app/customer/${c.shopifyCustomerId}`}

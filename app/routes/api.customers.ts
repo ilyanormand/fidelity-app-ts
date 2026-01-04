@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { serialize } from "../utils/serialize";
 
 // GET /api/customers - Get all customers or filter by shopId
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -28,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         return Response.json({ error: "Customer not found" }, { status: 404 });
       }
 
-      return Response.json({ customer });
+      return Response.json(serialize({ customer }));
     }
 
     // Get all customers (optionally filtered by shop)
@@ -45,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    return Response.json({ customers, count: customers.length });
+    return Response.json(serialize({ customers, count: customers.length }));
   } catch (error) {
     console.error("Error fetching customers:", error);
     return Response.json({ error: "Failed to fetch customers" }, { status: 500 });

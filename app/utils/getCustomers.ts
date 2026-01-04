@@ -1,30 +1,62 @@
 import prisma from "../db.server";
-//MOCK DATA
+
 export const getCustomers = async (shopId: string) => {
-  const statuses = ["synced", "pending", "error"];
-  const moc_data = Array.from({ length: 55 }, (_, i) => {
-    const totalEarned = Math.floor(Math.random() * 15000) + 500;
-    const totalSpent = Math.floor(Math.random() * totalEarned * 0.7);
-    const currentBalance = totalEarned - totalSpent;
-    const shopifyBalance =
-      Math.random() > 0.1
-        ? currentBalance
-        : Math.floor(Math.random() * currentBalance);
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
+  const customers = await prisma.customer.findMany({
+    where: { shopId },
+    include: {
+      ledgerEntries: {
+        select: {
+          amount: true,
+        },
+      },
+      redemptions: {
+        select: {
+          pointsSpent: true,
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return customers.map((customer) => {
+    // Calculate total earned (positive amounts)
+    const totalEarned = customer.ledgerEntries
+      .filter((entry) => entry.amount > 0)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    // Calculate total spent (negative amounts + redemptions)
+    const totalSpent =
+      Math.abs(
+        customer.ledgerEntries
+          .filter((entry) => entry.amount < 0)
+          .reduce((sum, entry) => sum + entry.amount, 0)
+      ) + customer.redemptions.reduce((sum, r) => sum + r.pointsSpent, 0);
+
+    // Determine sync status based on balance consistency
+    const calculatedBalance = totalEarned - totalSpent;
+    const actualBalance = customer.currentBalance || 0;
+    
+    let status: "synced" | "pending" | "error";
+    if (Math.abs(calculatedBalance - actualBalance) < 1) {
+      status = "synced";
+    } else if (Math.abs(calculatedBalance - actualBalance) < 100) {
+      status = "pending";
+    } else {
+      status = "error";
+    }
 
     return {
-      shopifyCustomerId: `customer_${1000000 + i}`,
-      name: `Customer ${i + 1}`,
-      email: `customer${i + 1}@example.com`,
-      createdAt: new Date(
-        Date.now() - Math.floor(Math.random() * 365 * 24 * 60 * 60 * 1000),
-      ),
+      id: customer.id,
+      shopifyCustomerId: customer.shopifyCustomerId,
+      name: `Customer ${customer.shopifyCustomerId.slice(-4)}`,
+      email: `customer_${customer.shopifyCustomerId.slice(-6)}@example.com`,
+      createdAt: customer.updatedAt?.toISOString() || null,
       totalEarned,
       totalSpent,
-      shopifyBalance,
-      currentBalance,
+      shopifyBalance: actualBalance, // In real app, this would come from Shopify metafield
+      currentBalance: actualBalance,
       status,
+      customerTags: customer.customerTags,
     };
   });
-  return moc_data;
 };

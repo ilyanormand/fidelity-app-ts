@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { serialize } from "../utils/serialize";
 
 // GET /api/stats - Get database statistics
 export const loader = async ({ request }: LoaderFunctionArgs) => {

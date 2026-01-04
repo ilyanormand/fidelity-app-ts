@@ -21,7 +21,8 @@ import styles from "./styles.module.scss";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
     const { session } = await authenticate.admin(request);
-    const transactions = await getAllTransactions();
+    const shopId = session.shop;
+    const transactions = await getAllTransactions(shopId);
 
     return { transactions };
 };
