@@ -22,6 +22,8 @@ import { CustomerSearch } from "../../components/customeSearch/CustomerSearch";
 import styles from "./styles.module.scss";
 import { getCustomers } from "../../utils/getCustomers";
 
+console.log("Loaded styles:", styles);
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shopId = session.shop;

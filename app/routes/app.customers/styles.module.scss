@@ -13,6 +13,8 @@
 }
 
 .customersTable {
+  border: 3px solid red; /* TEST - remove after debugging */
+  
   :global {
     .Polaris-DataTable__Table thead {
       background-color: #f6f6f7;
