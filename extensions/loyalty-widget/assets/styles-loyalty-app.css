@@ -1,0 +1,260 @@
+:root {
+  --font-family-basic: "Barlow", sans-serif;
+  --color-background: #ffffff;
+  --color-basic: #e4f964;
+  --color-secondary: #f3f3f3;
+  --color-button: #f3f3f3;
+  --color-button-active: #2c2c2c;
+  --color-button-hover: #bbbbbb;
+  --color-text-button: #000000;
+}
+.shopify-block {
+  width: 100%;
+}
+.loyalty-navbar-title {
+  color: #000000;
+  margin-left: 12px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: "Barlow", sans-serif;
+}
+
+.loyalty-navbar-title p {
+  margin: 0px;
+}
+.loyalty-navbar-points {
+  margin-left: 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.loyalty-navbar-points p:first-child {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: "Barlow", sans-serif;
+}
+
+.loyalty-navbar-points p:last-child {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: "Barlow", sans-serif;
+  padding-bottom: 2px;
+}
+
+#loyalty-spa-root {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  /* Background properties controlled via Shopify block settings */
+}
+
+.loyalty-spa-container {
+  background-color: white;
+  margin: 50px 0px;
+  padding: 28px 25px;
+  display: flex;
+  border-radius: 12px;
+  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
+  width: 945px;
+}
+
+.loyalty-navbar {
+  flex-shrink: 0;
+  padding: 15px 0px;
+  background-color: var(--color-secondary);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 294px;
+  width: 269px;
+  box-shadow: 0px 4px 4px 0px #00000040;
+}
+
+.loyalty-navbar .nav-btn {
+  padding-left: 15px;
+  width: 269px;
+  height: 41px;
+  border: none;
+  background: var(--color-button);
+  cursor: pointer;
+  text-align: left;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: -var(--font-family-basic);
+  color: var(--color-text-button);
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.loyalty-navbar .nav-btn:last-child {
+  border-bottom: none;
+}
+
+.loyalty-navbar .nav-btn:hover {
+  background: var(--color-button-hover);
+}
+
+.loyalty-navbar .nav-btn.active {
+  background: #2c2c2c;
+  color: white;
+}
+
+.loyalty-navbar .nav-btn.active:hover {
+  background: #404040;
+}
+
+.nav-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.nav-btn.active .nav-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* Mobile Navigation */
+.loyalty-navbar-mobile {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  background-color: var(--color-secondary);
+  border-radius: 12px;
+  box-shadow: 0px 4px 4px 0px #00000040;
+  margin-bottom: 20px;
+}
+
+.mobile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  height: 91px;
+}
+
+.burger-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 100;
+  transition: all 0.3s ease;
+}
+
+.burger-line {
+  width: 30px;
+  height: 3px;
+  background-color: #2c2c2c;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.burger-btn.active .burger-line:nth-child(1) {
+  transform: rotate(45deg) translate(8px, 8px);
+}
+
+.burger-btn.active .burger-line:nth-child(2) {
+  opacity: 0;
+}
+
+.burger-btn.active .burger-line:nth-child(3) {
+  transform: rotate(-45deg) translate(3px, -4px);
+}
+
+.mobile-menu {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.mobile-menu.open {
+  max-height: 300px;
+}
+
+.mobile-menu .nav-btn {
+  width: 100%;
+  padding: 15px 20px;
+  border: none;
+  background: var(--color-button);
+  cursor: pointer;
+  text-align: left;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-family-basic);
+  color: var(--color-text-button);
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.mobile-menu .nav-btn:last-child {
+  border-bottom: none;
+  border-radius: 0 0 12px 12px;
+}
+
+.mobile-menu .nav-btn:hover {
+  background: var(--color-button-hover);
+}
+
+.mobile-menu .nav-btn.active {
+  background: #2c2c2c;
+  color: white;
+}
+
+#loyalty-page-content {
+  flex: 1;
+  padding: 5px 0px 20px 25px;
+}
+
+/* ==================== MOBILE STYLES ==================== */
+@media screen and (max-width: 768px) {
+  .spacing-style {
+    flex-direction: column;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .shopify-block {
+    width: 321px;
+  }
+
+  .loyalty-spa-container {
+    width: 100%;
+    padding: 0px;
+    flex-direction: column;
+    margin: 20px 0px;
+  }
+
+  .loyalty-navbar {
+    display: none;
+  }
+
+  .loyalty-navbar-mobile {
+    display: flex;
+    border-radius: 12px 12px 0px 0px;
+  }
+
+  .loyalty-navbar-mobile .loyalty-navbar-title p {
+    color: #000000;
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--font-family-basic), sans-serif;
+    margin: 0;
+  }
+
+  #loyalty-page-content {
+    padding: 20px 10px;
+  }
+}
