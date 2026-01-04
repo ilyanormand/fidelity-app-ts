@@ -11,14 +11,10 @@ import {
   TextField,
   Button,
   Divider,
-  Pagination,
   BlockStack,
-  Popover,
-  ActionList,
   Page,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
-import { CustomerSearch } from "../../components/customeSearch/CustomerSearch";
 import styles from "./styles.module.scss";
 import { getCustomers } from "../../utils/getCustomers";
 
@@ -122,51 +118,28 @@ export default function Customers() {
           <Card roundedAbove="sm" padding="0">
             {/* HEADER OF TABLE */}
             <Box padding="500">
-              <InlineStack gap="300" align="center">
-                <Box minWidth="300px">
-                  <TextField
-                    label="Search customers"
-                    labelHidden
-                    placeholder="Search by customer name or email"
-                    value={search}
-                    onChange={handleSearchChange}
-                    prefix={
-                      <img
-                        src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763995304/free-icon-magnifier-2725317_rojlmm.svg"
-                        alt="search"
-                        style={{
-                          width: 16,
-                          height: 16,
-                          display: "flex",
-                          opacity: 0.5,
-                        }}
-                      />
-                    }
-                    autoComplete="off"
-                  />
-                </Box>
-                <div style={{ flex: 1 }}></div>
-                <CustomerSearch
-                  label="Point Balance"
-                  items={[
-                    { content: "1000 points" },
-                    { content: "2000 points" },
-                  ]}
+              <Box maxWidth="400px">
+                <TextField
+                  label="Search customers"
+                  labelHidden
+                  placeholder="Search by customer name or email"
+                  value={search}
+                  onChange={handleSearchChange}
+                  prefix={
+                    <img
+                      src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763995304/free-icon-magnifier-2725317_rojlmm.svg"
+                      alt="search"
+                      style={{
+                        width: 16,
+                        height: 16,
+                        display: "flex",
+                        opacity: 0.5,
+                      }}
+                    />
+                  }
+                  autoComplete="off"
                 />
-
-                <CustomerSearch
-                  label="Customer Tags"
-                  items={[{ content: "Tag A" }, { content: "Tag B" }]}
-                />
-                <CustomerSearch
-                  label="Date Joined"
-                  items={[{ content: "2022-01-01" }, { content: "2022-02-01" }]}
-                />
-                <CustomerSearch
-                  label="Exclusion Rules"
-                  items={[{ content: "Rule A" }, { content: "Rule B" }]}
-                />
-              </InlineStack>
+              </Box>
             </Box>
             <Divider />
             {/* TABLE */}

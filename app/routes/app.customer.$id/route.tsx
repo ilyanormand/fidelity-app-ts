@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useParams, Link } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { authenticate } from "../../shopify.server";
 import {
   Card,
@@ -11,15 +11,24 @@ import {
   TextField,
   Button,
   Divider,
-  Pagination,
   BlockStack,
-  Popover,
-  ActionList,
-  Avatar,
+  Modal,
+  ChoiceList,
+  Banner,
 } from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { getDataCustomer } from "../../utils/getDataCustomer";
+
+interface LedgerEntry {
+  id: string;
+  points: number;
+  type: string;
+  direction: string;
+  createdAt: string;
+  orderId: string | null;
+  notes: string;
+}
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -36,7 +45,81 @@ const PAGE_SIZE = 5;
 
 export default function Customer() {
   const data = useLoaderData<typeof loader>();
+  const fetcher = useFetcher();
+  const revalidator = useRevalidator();
   const [page, setPage] = useState(0);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pointsAmount, setPointsAmount] = useState("");
+  const [operationType, setOperationType] = useState<string[]>(["add"]);
+  const [reason, setReason] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const handleOpenModal = useCallback(() => {
+    setModalOpen(true);
+    setPointsAmount("");
+    setReason("");
+    setOperationType(["add"]);
+    setSubmitError(null);
+    setSubmitSuccess(null);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setModalOpen(false);
+    setSubmitError(null);
+    setSubmitSuccess(null);
+  }, []);
+
+  const handleSubmitPoints = useCallback(async () => {
+    if (!pointsAmount || isNaN(Number(pointsAmount)) || Number(pointsAmount) <= 0) {
+      setSubmitError("Please enter a valid positive number for points");
+      return;
+    }
+
+    if (!data.customer?.id) {
+      setSubmitError("Customer not found");
+      return;
+    }
+
+    const amount = operationType[0] === "add" 
+      ? Number(pointsAmount) 
+      : -Number(pointsAmount);
+
+    try {
+      const response = await fetch("/api/ledger", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerId: data.customer.id,
+          amount,
+          reason: reason || "manual_adjustment",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setSubmitError(result.error || "Failed to update points");
+        return;
+      }
+
+      setSubmitSuccess(
+        `Successfully ${operationType[0] === "add" ? "added" : "subtracted"} ${pointsAmount} points. New balance: ${result.newBalance}`
+      );
+      
+      // Revalidate the page data to show updated balance
+      setTimeout(() => {
+        revalidator.revalidate();
+        handleCloseModal();
+      }, 1500);
+    } catch (error) {
+      setSubmitError("Network error. Please try again.");
+    }
+  }, [pointsAmount, operationType, reason, data.customer?.id, revalidator, handleCloseModal]);
 
   const customerName = data.customer
     ? ` ${data.customer.secondName} ${data.customer.name.charAt(0)}.`
@@ -90,8 +173,8 @@ export default function Customer() {
     return "";
   };
 
-  const ledger = data.customer?.ledger || [];
-  const rows = ledger.map((entry) => {
+  const ledger: LedgerEntry[] = data.customer?.ledger || [];
+  const rows = ledger.map((entry: LedgerEntry) => {
     const badgeTone = getBadgeTone(entry.type, entry.direction);
     const amountColor = getAmountColor(entry.type, entry.direction);
     const prefix = getAmountPrefix(entry.type, entry.direction);
@@ -138,7 +221,9 @@ export default function Customer() {
           </Text>
           <div style={{ flex: 1 }}></div>
           <Button variant="primary">Force sync metafields</Button>
-          <Button variant="primary">Add/substract points </Button>
+          <Button variant="primary" onClick={handleOpenModal}>
+            Add/subtract points
+          </Button>
         </InlineStack>
         <InlineStack gap="400" align="start" blockAlign="start">
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -304,6 +389,74 @@ export default function Customer() {
           </Box>
         </Card>
       </BlockStack>
+
+      {/* Add/Subtract Points Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={handleCloseModal}
+        title="Adjust Customer Points"
+        primaryAction={{
+          content: operationType[0] === "add" ? "Add Points" : "Subtract Points",
+          onAction: handleSubmitPoints,
+          loading: fetcher.state === "submitting",
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: handleCloseModal,
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            {submitError && (
+              <Banner tone="critical" onDismiss={() => setSubmitError(null)}>
+                {submitError}
+              </Banner>
+            )}
+            {submitSuccess && (
+              <Banner tone="success">
+                {submitSuccess}
+              </Banner>
+            )}
+
+            <ChoiceList
+              title="Operation"
+              choices={[
+                { label: "Add points", value: "add" },
+                { label: "Subtract points", value: "subtract" },
+              ]}
+              selected={operationType}
+              onChange={setOperationType}
+            />
+
+            <TextField
+              label="Points amount"
+              type="number"
+              value={pointsAmount}
+              onChange={setPointsAmount}
+              autoComplete="off"
+              min={1}
+              helpText={`Current balance: ${data.customer?.balancePointsTotal?.toLocaleString("en-US") || 0} points`}
+            />
+
+            <TextField
+              label="Reason (optional)"
+              value={reason}
+              onChange={setReason}
+              autoComplete="off"
+              placeholder="e.g., Birthday bonus, Manual correction"
+              helpText="This will be recorded in the transaction history"
+            />
+
+            <Text as="p" variant="bodySm" tone="subdued">
+              {operationType[0] === "add" 
+                ? `This will add ${pointsAmount || 0} points to the customer's balance.`
+                : `This will subtract ${pointsAmount || 0} points from the customer's balance.`}
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </s-page>
   );
 }
