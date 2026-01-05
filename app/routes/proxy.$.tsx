@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { processRedemption } from "../utils/redemption.server";
+import { createLoyaltyDiscount } from "../utils/createShopifyDiscount.server";
 
 /**
  * App Proxy Route (Splat Route)
@@ -147,22 +149,22 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           // Use linked reward data if available, otherwise use stored name
           reward: r.reward
             ? {
-                id: r.reward.id,
-                name: r.reward.name,
-                description: r.reward.description,
-                imageUrl: r.reward.imageUrl,
-                discountType: r.reward.discountType,
-                discountValue: r.reward.discountValue,
-                minimumCartValue: r.reward.minimumCartValue,
-              }
+              id: r.reward.id,
+              name: r.reward.name,
+              description: r.reward.description,
+              imageUrl: r.reward.imageUrl,
+              discountType: r.reward.discountType,
+              discountValue: r.reward.discountValue,
+              minimumCartValue: r.reward.minimumCartValue,
+            }
             : {
-                name: r.rewardName || "Unknown Reward",
-                description: null,
-                imageUrl: null,
-                discountType: "fixed_amount",
-                discountValue: 0,
-                minimumCartValue: null,
-              },
+              name: r.rewardName || "Unknown Reward",
+              description: null,
+              imageUrl: null,
+              discountType: "fixed_amount",
+              discountValue: 0,
+              minimumCartValue: null,
+            },
         })),
       });
     }
@@ -189,9 +191,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const customerId = url.searchParams.get("logged_in_customer_id");
   const path = params["*"];
 
+  // Get admin context for creating discounts (requires session)
+  // Note: App proxy doesn't have admin session, so we'll use a different approach
+  // For now, we'll generate codes without creating them in Shopify
+  // You'll need to create them via webhook or separate admin endpoint
+
   try {
     // POST /apps/loyalty/redeem - Redeem points for a reward
-    if (path === "redeem" && customerId && shop) {
+    if (path === "redeem") {
       const body = await request.json();
       const { rewardId, cartTotal } = body;
 
@@ -202,104 +209,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }, { status: 400 });
       }
 
-      // Find customer
-      const customer = await prisma.customer.findFirst({
-        where: {
-          shopifyCustomerId: customerId,
-          shopId: shop,
-        },
-      });
-
-      if (!customer) {
+      // Check if customer is logged in
+      if (!customerId) {
         return Response.json({
           success: false,
-          error: "Customer not found. Please sign up for loyalty program.",
-        }, { status: 404 });
+          error: "Customer must be logged in to redeem points",
+          requiresLogin: true,
+        }, { status: 401 });
       }
 
-      // Find reward
-      const reward = await prisma.reward.findUnique({
-        where: { id: rewardId },
-      });
-
-      if (!reward || !reward.isActive) {
+      if (!shop) {
         return Response.json({
           success: false,
-          error: "Reward not available",
-        }, { status: 404 });
-      }
-
-      // Check if customer has enough points
-      if ((customer.currentBalance || 0) < reward.pointsCost) {
-        return Response.json({
-          success: false,
-          error: "Insufficient points",
-          required: reward.pointsCost,
-          current: customer.currentBalance,
+          error: "Shop parameter missing",
         }, { status: 400 });
       }
 
-      // Check minimum cart value
-      if (reward.minimumCartValue && cartTotal < reward.minimumCartValue) {
-        return Response.json({
-          success: false,
-          error: "Cart total below minimum",
-          minimumRequired: reward.minimumCartValue / 100,
-        }, { status: 400 });
-      }
-
-      // Generate discount code
-      const discountCode = `LOYAL${customerId.slice(-4)}_${Date.now().toString(36).toUpperCase()}`;
-
-      // Create redemption and update balance in transaction
-      const result = await prisma.$transaction(async (tx) => {
-        // Create redemption
-        const redemption = await tx.redemption.create({
-          data: {
-            customerId: customer.id,
-            rewardId: reward.id,
-            rewardName: reward.name,
-            shopifyDiscountCode: discountCode,
-            pointsSpent: reward.pointsCost,
-          },
-        });
-
-        // Create ledger entry
-        await tx.ledger.create({
-          data: {
-            customerId: customer.id,
-            amount: -reward.pointsCost,
-            reason: "redemption",
-            metadata: {
-              redemptionId: redemption.id,
-              rewardName: reward.name,
-            },
-          },
-        });
-
-        // Update customer balance
-        const updatedCustomer = await tx.customer.update({
-          where: { id: customer.id },
-          data: {
-            currentBalance: {
-              decrement: reward.pointsCost,
-            },
-          },
-        });
-
-        return { redemption, updatedCustomer };
-      });
-
-      return Response.json({
-        success: true,
-        discountCode,
-        newBalance: result.updatedCustomer.currentBalance,
-        redemption: {
-          id: result.redemption.id,
-          rewardName: reward.name,
-          pointsSpent: reward.pointsCost,
-        },
-      });
+      // Call shared utility directly to avoid internal network calls and 405 errors
+      const result = await processRedemption(customerId, rewardId, shop, cartTotal);
+      return Response.json(result, { status: result.status || (result.success ? 200 : 400) });
     }
 
     return Response.json({

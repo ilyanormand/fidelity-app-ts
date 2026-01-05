@@ -123,11 +123,15 @@ function renderChangePointsRewards(rewards) {
 }
 
 async function redeemReward(rewardId, minimumCartValue) {
+  console.log("🔄 Redeeming reward:", rewardId);
+  
   try {
     // Get current cart total (if available)
     const cartTotal = await getCurrentCartTotal();
+    console.log("🛒 Cart total:", cartTotal);
 
     // Call app proxy to redeem points
+    console.log("📡 Calling /apps/loyalty/redeem...");
     const response = await fetch("/apps/loyalty/redeem", {
       method: "POST",
       headers: {
@@ -139,11 +143,29 @@ async function redeemReward(rewardId, minimumCartValue) {
       }),
     });
 
+    console.log("📦 Response status:", response.status);
+
     const data = await response.json();
+    console.log("📦 Response data:", data);
 
     if (!data.success) {
-      throw new Error(data.error || "Failed to redeem reward");
+      // Handle specific error cases
+      if (data.requiresLogin) {
+        // Redirect to login with return URL
+        const returnUrl = window.location.pathname + window.location.search;
+        window.location.href = `/account/login?return_url=${encodeURIComponent(returnUrl)}`;
+        return; // Stop execution
+      }
+      if (data.error === "Insufficient points") {
+        throw new Error(`Points insuffisants. Vous avez ${data.current} points, mais ${data.required} sont nécessaires.`);
+      }
+      if (data.error === "Cart total below minimum") {
+        throw new Error(`Panier minimum requis: ${data.minimumRequired}€`);
+      }
+      throw new Error(data.error || "Échec de l'échange. Veuillez réessayer.");
     }
+
+    console.log("✅ Redemption successful!");
 
     // Return discount code and details
     return {
@@ -183,6 +205,12 @@ function attachRedeemButtonHandlers() {
         return;
       }
 
+      // Double-check login status (should already be handled, but just in case)
+      if (!isCustomerLoggedIn()) {
+        redirectToLogin();
+        return;
+      }
+
       const rewardId = button.getAttribute("data-reward-id");
       const minimumCartValue = parseInt(button.getAttribute("data-minimum") || "0");
       const originalText = button.textContent;
@@ -209,6 +237,27 @@ function attachRedeemButtonHandlers() {
       }
     });
   });
+}
+
+// Helper function to check if customer is logged in
+function isCustomerLoggedIn() {
+  // Check Liquid-generated class (most reliable)
+  const loyaltyRoot = document.getElementById('loyalty-spa-root');
+  if (loyaltyRoot && loyaltyRoot.classList.contains('customer-logged-in')) {
+    return true;
+  }
+  
+  // Check if customer-id data attribute exists and has value
+  if (loyaltyRoot && loyaltyRoot.dataset.customerId) {
+    return true;
+  }
+  
+  // Check if Shopify customer object exists
+  if (typeof window.Shopify !== 'undefined' && window.Shopify.customer) {
+    return window.Shopify.customer.id !== null;
+  }
+  
+  return false;
 }
 
 function showRewardModal(code, minimalBuy, imgUrl) {
@@ -292,12 +341,31 @@ window.closeRewardModal = closeRewardModal;
 
 document.addEventListener("DOMContentLoaded", () => {
   const changePointsPage = document.getElementById("change_points-content");
+  
   if (changePointsPage && changePointsPage.style.display !== "none") {
-    loadChangePointsData();
+    // Check if user is logged in before loading rewards
+    if (!isCustomerLoggedIn()) {
+      redirectToLogin();
+    } else {
+      loadChangePointsData();
+    }
   }
+  
   if (changePointsPage) {
     changePointsPage.addEventListener("pageShown", () => {
-      loadChangePointsData();
+      // Check login status when navigating to this tab
+      if (!isCustomerLoggedIn()) {
+        redirectToLogin();
+      } else {
+        loadChangePointsData();
+      }
     });
   }
 });
+
+// Redirect to login with return URL
+function redirectToLogin() {
+  const returnUrl = window.location.pathname + window.location.search;
+  console.log("🔒 Customer not logged in, redirecting to login...");
+  window.location.href = `/account/login?return_url=${encodeURIComponent(returnUrl)}`;
+}

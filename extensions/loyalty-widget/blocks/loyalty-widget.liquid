@@ -1,4 +1,6 @@
 <div id="loyalty-spa-root" 
+  class="{% if customer %}customer-logged-in{% else %}customer-not-logged-in{% endif %}"
+  data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
   {% if block.settings.background_image %}
   style="
     background-image: url('{{ block.settings.background_image | image_url }}');
@@ -19,16 +21,11 @@
 
     <div class="loyalty-navbar">
       <div class="loyalty-navbar-title">
-        <p>Name person</p>
-        {% comment %}
-          {% if customer %}
-            <p>{{ customer.first_name }}!</p>
-          {% else %}
-             <script>
-              window.location.href = "/account/login";
-            </script>
-          {% endif %}
-        {% endcomment %}
+        {% if customer %}
+          <p>{{ customer.first_name | default: 'Membre' }}!</p>
+        {% else %}
+          <p>Invité</p>
+        {% endif %}
       </div>
       <div class="loyalty-navbar-points">
         <p>421</p>

@@ -1,6 +1,6 @@
 <link href="{{ 'styles-change-points.css' | asset_url }}" rel="stylesheet">
 
-<div class="change-points-content">
+<div class="change-points-content{% if customer %} customer-logged-in{% endif %}" data-customer-id="{{ customer.id }}">
   <h3 class="change-points-title">{{ 'loyalty_widget.pages.change_points.title' | t }}</h3>
   <div class="change-points-features">
     <p class="change-points-item">{{ 'loyalty_widget.pages.change_points.first_feature' | t }}</p>
