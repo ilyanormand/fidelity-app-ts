@@ -97,6 +97,7 @@ export default function Customer() {
           customerId: data.customer.id,
           amount,
           reason: reason || "manual_adjustment",
+          syncToShopify: true, // Sync to Shopify metafield
         }),
       });
 

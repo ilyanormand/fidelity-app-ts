@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { serialize } from "../utils/serialize";
+import { syncBalanceToShopify } from "../utils/metafields.server";
+import { authenticate } from "../shopify.server";
 
 // GET /api/ledger - Get ledger entries
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -56,11 +58,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // DELETE /api/ledger - Delete a ledger entry
 export const action = async ({ request }: ActionFunctionArgs) => {
   const method = request.method;
+  
+  // Try to get admin context for metafield sync (optional)
+  let admin;
+  try {
+    const auth = await authenticate.admin(request);
+    admin = auth.admin;
+  } catch (e) {
+    // If not admin context, continue without sync
+    console.log("No admin context for metafield sync");
+  }
 
   try {
     if (method === "POST") {
       const body = await request.json();
-      const { customerId, amount, reason, externalId, metadata, shopifyOrderId } = body;
+      const { customerId, amount, reason, externalId, metadata, shopifyOrderId, syncToShopify = false } = body;
 
       if (!customerId || amount === undefined || !reason) {
         return Response.json(
@@ -103,11 +115,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { entry, updatedCustomer };
       });
 
+      // Optionally sync to Shopify metafield
+      if (syncToShopify && admin && customer.shopifyCustomerId) {
+        try {
+          await syncBalanceToShopify(
+            admin,
+            customer.shopifyCustomerId,
+            result.updatedCustomer.currentBalance || 0
+          );
+        } catch (syncError) {
+          console.error("Failed to sync to Shopify (non-critical):", syncError);
+          // Continue - DB is updated, Shopify sync can be retried later
+        }
+      }
+
       return Response.json(
         serialize({
           entry: result.entry,
           newBalance: result.updatedCustomer.currentBalance,
           message: amount > 0 ? "Points added" : "Points deducted",
+          shopifySynced: syncToShopify,
         }),
         { status: 201 }
       );

@@ -16,12 +16,16 @@ import {
 } from "@shopify/polaris";
 import { checkSystem } from "../utils/checkSystem";
 import { getGeneralStats } from "../utils/getGeneralStats";
+import { ensureLoyaltyMetafields } from "../../utils/metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shopId = session.shop;
   const url = new URL(request.url);
   const range = url.searchParams.get("range") || "30d";
+
+  // Ensure metafield definition exists (runs on every dashboard load)
+  await ensureLoyaltyMetafields(admin);
 
   // Get points stats from database
   let pointsStats;
