@@ -128,7 +128,7 @@ export function getBalanceFromMetafields(useAppMetafields) {
   }
   const balanceMetafields = useAppMetafields({
     namespace: "loyalty",
-    key: "balance",
+    key: "points_balance",
     type: "customer",
   });
   const balanceMetafield = balanceMetafields.find(

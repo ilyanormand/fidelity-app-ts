@@ -37,7 +37,7 @@ block_progress = true
 
 [[extensions.metafields]]
 namespace = "loyalty"
-key = "balance"
+key = "points_balance"
 owner_type = "customer"
 
 # Defines settings that will be collected from merchants installing
