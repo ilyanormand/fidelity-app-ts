@@ -134,6 +134,27 @@
 
 <link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
 
+<style>
+  {% if block.settings.enable_full_width %}
+  /* Full width styles */
+  .shopify-block,
+  .shopify-app-block,
+  div[id*="shopify-block"] {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin-left: calc(-50vw + 50%) !important;
+    margin-right: calc(-50vw + 50%) !important;
+  }
+  {% endif %}
+  
+  {% if block.settings.enable_full_height %}
+  /* Full height styles */
+  #loyalty-spa-root {
+    height: 100vh !important;
+  }
+  {% endif %}
+</style>
+
 {% schema %}
 {
   "name": "Loyalty Widget",
@@ -208,6 +229,22 @@
       "id": "background_repeat",
       "label": "Repeat Background",
       "default": false
+    },
+    {
+      "type": "header",
+      "content": "Layout Settings"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_full_width",
+      "label": "Enable Full Width",
+      "default": true,
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_full_height",
+      "label": "Enable Full Height",
+      "default": false,
     }
   ]
 }

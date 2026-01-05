@@ -8,6 +8,7 @@
   --color-button-hover: #bbbbbb;
   --color-text-button: #000000;
 }
+
 .shopify-block {
   width: 100%;
 }
@@ -47,6 +48,7 @@
   justify-content: center;
   gap: 10px;
   /* Background properties controlled via Shopify block settings */
+  /* Height can be controlled via block settings */
 }
 
 .loyalty-spa-container {
@@ -57,6 +59,7 @@
   border-radius: 12px;
   box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
   width: 945px;
+  height: max-content;
 }
 
 .loyalty-navbar {
@@ -231,7 +234,7 @@
   }
 
   .loyalty-spa-container {
-    width: 100%;
+    width: max-content;
     padding: 0px;
     flex-direction: column;
     margin: 20px 0px;
