@@ -109,12 +109,6 @@ export default function Dashboard() {
   return (
     <Page
       title="Dashboard"
-      primaryAction={
-        <InlineStack gap="400" align="end" blockAlign="end">
-          <Button variant="primary">Open customer list</Button>
-          <Button variant="primary">Adjust points manually</Button>
-        </InlineStack>
-      }
     >
       <BlockStack gap="400">
         <GeneralStatistics data={data.statistics} />

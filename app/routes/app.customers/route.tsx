@@ -96,12 +96,6 @@ export default function Customers() {
   return (
     <Page
       title="Customers"
-      primaryAction={
-        <InlineStack gap="400" align="end" blockAlign="end">
-          <Button variant="primary">Open customer list</Button>
-          <Button variant="primary">Adjust points manually</Button>
-        </InlineStack>
-      }
     >
       <Box padding="0">
         <BlockStack gap="400">

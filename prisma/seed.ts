@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { randomUUID } from "crypto";
 
 const prisma = new PrismaClient();
 
@@ -14,6 +13,7 @@ async function main() {
   await prisma.redemption.deleteMany();
   await prisma.ledger.deleteMany();
   await prisma.customer.deleteMany();
+  await prisma.reward.deleteMany();
   console.log("✓ Cleared existing data");
 
   // Create test customers
@@ -157,14 +157,98 @@ async function main() {
   await Promise.all(ledgerEntries);
   console.log(`✓ Created ${ledgerEntries.length} ledger entries`);
 
+  // Create rewards
+  const rewards = await Promise.all([
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "5% Discount",
+        description: "Get 5% off your next purchase",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 200,
+        discountType: "percentage",
+        discountValue: 5,
+        minimumCartValue: null,
+        isActive: true,
+      },
+    }),
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "$10 Off",
+        description: "Get $10 off your order",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 400,
+        discountType: "fixed_amount",
+        discountValue: 1000, // $10.00 in cents
+        minimumCartValue: 5000, // $50.00 minimum cart
+        isActive: true,
+      },
+    }),
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "Free Shipping",
+        description: "Free standard shipping on your order",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 150,
+        discountType: "free_shipping",
+        discountValue: 0,
+        minimumCartValue: 2000, // $20.00 minimum
+        isActive: true,
+      },
+    }),
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "$20 Off",
+        description: "Get $20 off your purchase",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 800,
+        discountType: "fixed_amount",
+        discountValue: 2000, // $20.00 in cents
+        minimumCartValue: 10000, // $100.00 minimum
+        isActive: true,
+      },
+    }),
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "20% Discount",
+        description: "Get 20% off everything",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 1500,
+        discountType: "percentage",
+        discountValue: 20,
+        minimumCartValue: 7500, // $75.00 minimum
+        isActive: true,
+      },
+    }),
+    prisma.reward.create({
+      data: {
+        shopId: SHOP_ID,
+        name: "$50 Off (Premium)",
+        description: "Premium reward - $50 off",
+        imageUrl: "https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png",
+        pointsCost: 1800,
+        discountType: "fixed_amount",
+        discountValue: 5000, // $50.00 in cents
+        minimumCartValue: 20000, // $200.00 minimum
+        isActive: false, // Inactive reward for testing
+      },
+    }),
+  ]);
+
+  console.log(`✓ Created ${rewards.length} rewards`);
+
   // Create redemptions
   const redemptions = [];
   const rewardTypes = [
-    { id: randomUUID(), name: "5% Discount", points: 200 },
-    { id: randomUUID(), name: "10% Discount", points: 400 },
-    { id: randomUUID(), name: "Free Shipping", points: 150 },
-    { id: randomUUID(), name: "€20 Off", points: 800 },
-    { id: randomUUID(), name: "€50 Off", points: 1800 },
+    { name: "5% Discount", points: 200 },
+    { name: "10% Discount", points: 400 },
+    { name: "Free Shipping", points: 150 },
+    { name: "€20 Off", points: 800 },
+    { name: "€50 Off", points: 1800 },
   ];
 
   for (const customer of customers) {
@@ -178,7 +262,7 @@ async function main() {
         prisma.redemption.create({
           data: {
             customerId: customer.id,
-            rewardId: reward.id,
+            rewardName: reward.name,
             shopifyDiscountCode: `LOYAL${customer.shopifyCustomerId.slice(-4)}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
             pointsSpent: reward.points,
             createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
@@ -194,6 +278,7 @@ async function main() {
   // Print summary
   console.log("\n📊 Database Summary:");
   console.log(`   Customers: ${await prisma.customer.count()}`);
+  console.log(`   Rewards: ${await prisma.reward.count()}`);
   console.log(`   Ledger entries: ${await prisma.ledger.count()}`);
   console.log(`   Redemptions: ${await prisma.redemption.count()}`);
   

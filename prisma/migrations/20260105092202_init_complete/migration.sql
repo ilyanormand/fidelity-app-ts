@@ -46,10 +46,28 @@ CREATE TABLE "ledger" (
 );
 
 -- CreateTable
+CREATE TABLE "rewards" (
+    "id" UUID NOT NULL,
+    "shop_id" VARCHAR(255) NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "description" TEXT,
+    "image_url" VARCHAR(512),
+    "points_cost" INTEGER NOT NULL,
+    "discount_type" VARCHAR(50) NOT NULL,
+    "discount_value" INTEGER NOT NULL,
+    "minimum_cart_value" INTEGER,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "rewards_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "redemptions" (
     "id" UUID NOT NULL,
     "customer_id" UUID,
-    "reward_id" UUID,
+    "reward_name" VARCHAR(255),
     "shopify_discount_code" VARCHAR(255),
     "points_spent" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
