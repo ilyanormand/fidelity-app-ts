@@ -1,15 +1,15 @@
 document.addEventListener("DOMContentLoaded", () => {
   const buttons = document.querySelectorAll("button[data-page]");
   const pages = document.querySelectorAll(".loyalty-page");
-  const burgerBtn = document.getElementById("burger-toggle");
-  const mobileMenu = document.getElementById("mobile-menu");
+  const burgerBtn = document.getElementById("fidelity-burger-toggle");
+  const mobileMenu = document.getElementById("fidelity-mobile-menu");
 
   // Navigation functionality
   buttons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const buttonPage = btn.getAttribute("data-page");
-      buttons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
+      buttons.forEach((b) => b.classList.remove("fidelity-active"));
+      btn.classList.add("fidelity-active");
 
       pages.forEach((page) => {
         page.style.display = "none";
@@ -30,9 +30,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Close mobile menu after clicking
       if (mobileMenu && window.innerWidth <= 768) {
-        mobileMenu.classList.remove("open");
+        mobileMenu.classList.remove("fidelity-open");
         if (burgerBtn) {
-          burgerBtn.classList.remove("active");
+          burgerBtn.classList.remove("fidelity-active");
         }
       }
     });
@@ -41,21 +41,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // Burger menu toggle
   if (burgerBtn && mobileMenu) {
     burgerBtn.addEventListener("click", () => {
-      mobileMenu.classList.toggle("open");
-      burgerBtn.classList.toggle("active");
+      mobileMenu.classList.toggle("fidelity-open");
+      burgerBtn.classList.toggle("fidelity-active");
     });
 
     // Close menu when clicking outside
     document.addEventListener("click", (e) => {
       if (!burgerBtn.contains(e.target) && !mobileMenu.contains(e.target)) {
-        mobileMenu.classList.remove("open");
-        burgerBtn.classList.remove("active");
+        mobileMenu.classList.remove("fidelity-open");
+        burgerBtn.classList.remove("fidelity-active");
       }
     });
   }
 
   // Set first button as active
   if (buttons.length > 0) {
-    buttons[0].classList.add("active");
+    buttons[0].classList.add("fidelity-active");
   }
 });

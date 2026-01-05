@@ -78,7 +78,7 @@
   background-color: #f6ffc6;
 }
 
-.reward-card.unavailable {
+.reward-card.fidelity-unavailable {
   filter: grayscale(70%);
   opacity: 0.6;
 }
@@ -102,7 +102,7 @@
   transition: opacity 0.3s ease;
 }
 
-.reward-card-content .redeem-btn {
+.reward-card-content .fidelity-redeem-btn {
   position: relative;
   z-index: 2;
 }
@@ -163,7 +163,7 @@
   color: #000000;
 }
 
-.redeem-btn {
+.fidelity-redeem-btn {
   border-radius: 20px;
   margin-top: auto;
   padding: 0px 10px;
@@ -179,20 +179,20 @@
   font-family: var(--font-family-basic), sans-serif;
 }
 
-.redeem-btn:hover {
+.fidelity-redeem-btn:hover {
   background-color: #404040;
 }
 
-.redeem-btn.disabled {
+.fidelity-redeem-btn.fidelity-disabled {
   background-color: #999;
   cursor: not-allowed;
 }
 
-.redeem-btn.disabled:hover {
+.fidelity-redeem-btn.fidelity-disabled:hover {
   background-color: #999;
 }
 
-.redeem-btn.processing {
+.fidelity-redeem-btn.fidelity-processing {
   cursor: wait;
 }
 
@@ -212,7 +212,7 @@
     margin: 0;
   }
 
-  .redeem-btn {
+  .fidelity-redeem-btn {
     border-radius: 20px;
     background-color: black;
     width: 101px;
@@ -241,7 +241,7 @@
 }
 
 /* ==================== MODAL STYLES ==================== */
-.reward-modal {
+.fidelity-reward-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -253,11 +253,11 @@
   justify-content: center;
 }
 
-.reward-modal.active {
+.fidelity-reward-modal.fidelity-active {
   display: flex;
 }
 
-.reward-modal-overlay {
+.fidelity-reward-modal-overlay {
   display: block !important;
   position: absolute;
   top: 0;
@@ -268,7 +268,7 @@
   z-index: 1;
 }
 
-.reward-modal-content {
+.fidelity-reward-modal-content {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -284,7 +284,7 @@
   box-shadow: 0px 10px 40px rgba(0, 0, 0, 0.3);
 }
 
-.reward-modal-content h3 {
+.fidelity-reward-modal-content h3 {
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-size: 16px;
@@ -292,7 +292,7 @@
   margin: 0 0 10px 0;
 }
 
-.reward-modal-icon {
+.fidelity-reward-modal-icon {
   width: 135px;
   height: 135px;
   object-fit: contain;
@@ -300,7 +300,7 @@
   margin-bottom: 5px;
 }
 
-.reward-modal-content .modal-message {
+.fidelity-reward-modal-content .fidelity-modal-message {
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-size: 14px;
@@ -308,7 +308,7 @@
   margin: 0 0 10px 0;
 }
 
-.reward-modal-content .modal-code-container {
+.fidelity-reward-modal-content .fidelity-modal-code-container {
   display: flex;
   align-items: center;
   background-color: var(--color-basic);
@@ -319,18 +319,24 @@
   transition: background-color 0.3s ease;
 }
 
-.reward-modal-content .modal-code-container.copied {
+.fidelity-reward-modal-content .fidelity-modal-code-container.fidelity-copied {
   background-color: var(--color-basic);
 }
 
-.reward-modal-content .modal-code-container.copied .modal-code {
+.fidelity-reward-modal-content
+  .fidelity-modal-code-container.fidelity-copied
+  .fidelity-modal-code {
   color: rgb(0, 0, 0);
 }
 
-.reward-modal-content .modal-code-container.copied .code-revealed-logo {
+.fidelity-reward-modal-content
+  .fidelity-modal-code-container.fidelity-copied
+  .fidelity-code-revealed-logo {
   display: none;
 }
-.reward-modal-content .modal-code-container .code-revealed-logo {
+.fidelity-reward-modal-content
+  .fidelity-modal-code-container
+  .fidelity-code-revealed-logo {
   filter: invert(0);
   width: 16px;
   height: 16px;
@@ -338,7 +344,7 @@
   flex-shrink: 0;
   margin-left: 5px;
 }
-.reward-modal-content .modal-code {
+.fidelity-reward-modal-content .fidelity-modal-code {
   color: black;
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
@@ -346,7 +352,7 @@
   font-size: 20px;
 }
 
-.reward-modal-content .modal-info {
+.fidelity-reward-modal-content .fidelity-modal-info {
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-size: 12px;
@@ -356,7 +362,7 @@
   margin: 0;
 }
 
-.reward-modal-content .modal-minimum {
+.fidelity-reward-modal-content .fidelity-modal-minimum {
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-size: 12px;
@@ -364,7 +370,7 @@
   margin-bottom: 10px;
 }
 
-.reward-modal-content .modal-btn {
+.fidelity-reward-modal-content .fidelity-modal-btn {
   background-color: #000000;
   color: white;
   border: none;
@@ -379,26 +385,26 @@
   max-width: 300px;
 }
 
-.reward-modal-content .modal-btn:hover {
+.fidelity-reward-modal-content .fidelity-modal-btn:hover {
   background-color: #333333;
 }
 
 @media screen and (max-width: 768px) {
-  .reward-modal-content {
+  .fidelity-reward-modal-content {
     padding: 30px 20px;
     max-width: 90%;
   }
 
-  .reward-modal-content h3 {
+  .fidelity-reward-modal-content h3 {
     font-size: 24px;
   }
 
-  .reward-modal-content .modal-code {
+  .fidelity-reward-modal-content .fidelity-modal-code {
     font-size: 24px;
     padding: 12px 15px;
   }
 
-  .reward-modal-content .modal-btn {
+  .fidelity-reward-modal-content .fidelity-modal-btn {
     font-size: 14px;
     padding: 12px 25px;
   }

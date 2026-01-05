@@ -72,11 +72,11 @@
   box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
 }
 
-.task-card.completed {
+.task-card.fidelity-completed {
   filter: grayscale(50%);
 }
 
-.task-card.completed::after {
+.task-card.fidelity-completed::after {
   content: "Completed ✅";
   position: absolute;
   top: 0;
@@ -131,7 +131,7 @@
     padding: 10px 5px;
   }
 
-  .task-card.completed::after {
+  .task-card.fidelity-completed::after {
     text-align: center;
     font-size: 15px;
   }

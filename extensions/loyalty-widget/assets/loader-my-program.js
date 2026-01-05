@@ -48,7 +48,7 @@ function renderMyProgramTasks(tasks) {
   const tasksHTML = tasks
     .map(
       (task) => `
-      <div class="task-card ${task.isCompleted ? "completed" : ""}" data-task-id="${task.task}">
+      <div class="task-card ${task.isCompleted ? "fidelity-completed" : ""}" data-task-id="${task.task}">
         <img 
           src="${task.imgUrl}" 
           alt="logo" 

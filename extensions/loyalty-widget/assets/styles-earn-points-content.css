@@ -104,11 +104,11 @@
   box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
 }
 
-.task-card-earn-points.completed {
+.task-card-earn-points.fidelity-completed {
   filter: grayscale(50%);
 }
 
-.task-card-earn-points.completed::after {
+.task-card-earn-points.fidelity-completed::after {
   content: "Completed ✅";
   position: absolute;
   top: 0;
@@ -159,7 +159,7 @@
     margin: 10px;
   }
 
-  .task-card-earn-points.completed::after {
+  .task-card-earn-points.fidelity-completed::after {
     text-align: center;
     font-size: 15px;
   }

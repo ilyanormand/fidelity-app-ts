@@ -62,7 +62,7 @@ function renderMyRewards(rewards) {
   const rewardsHTML = rewards
     .map(
       (reward) => `
-      <div class="my-reward-card ${reward.used ? "used" : ""}" data-reward-code="${reward.code}">
+      <div class="my-reward-card ${reward.used ? "fidelity-used" : ""}" data-reward-code="${reward.code}">
         <div class="my-reward-card-content">
           <img 
             src="${reward.imgUrl}" 
@@ -74,8 +74,8 @@ function renderMyRewards(rewards) {
           >
           <h4>Bon d'achat de ${reward.discountAmount}</h4>
           <p style="font-size: 12px; margin-bottom: 10px;">Expire le ${reward.expiryDate}</p>
-          <button class="use-reward-btn ${reward.used ? "disabled" : ""}" ${reward.used ? "disabled" : ""}>
-            ${reward.used ? "Utilisé" : "J’utilise ma réduction"}
+          <button class="fidelity-use-reward-btn ${reward.used ? "fidelity-disabled" : ""}" ${reward.used ? "disabled" : ""}>
+            ${reward.used ? "Utilisé" : "J'utilise ma réduction"}
           </button>
         </div>
         <div class="my-reward-card-hover">
@@ -94,7 +94,7 @@ function renderMyRewards(rewards) {
 }
 
 function attachRewardButtonHandlers() {
-  const buttons = document.querySelectorAll(".use-reward-btn:not(.disabled)");
+  const buttons = document.querySelectorAll(".fidelity-use-reward-btn:not(.fidelity-disabled)");
 
   buttons.forEach((button) => {
     let isCopying = false;
@@ -107,12 +107,12 @@ function attachRewardButtonHandlers() {
       if (!code) return;
 
       // First click: reveal code
-      if (!button.classList.contains("code-revealed")) {
+      if (!button.classList.contains("fidelity-code-revealed")) {
         button.innerHTML = `
           <span>${code}</span>
-          <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="code-revealed-logo">
+          <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="fidelity-code-revealed-logo">
         `;
-        button.classList.add("code-revealed");
+        button.classList.add("fidelity-code-revealed");
       }
       // Second click: copy code to clipboard
       else {
@@ -125,14 +125,14 @@ function attachRewardButtonHandlers() {
 
           // Show feedback
           button.innerHTML = `<span>Copié!</span>`;
-          button.classList.add("copied");
+          button.classList.add("fidelity-copied");
 
           setTimeout(() => {
             button.innerHTML = `
               <span>${code}</span>
-              <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="code-revealed-logo">
+              <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="fidelity-code-revealed-logo">
             `;
-            button.classList.remove("copied");
+            button.classList.remove("fidelity-copied");
             isCopying = false;
           }, 2000);
         } catch (err) {
