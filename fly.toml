@@ -9,7 +9,7 @@ primary_region = 'fra'
 [build]
 
 [deploy]
-  release_command = 'npx prisma migrate deploy'
+  rrelease_command = "npx prisma db push --force-reset --accept-data-loss"
   seed_command = 'npx tsx prisma/seed.ts'
 
 [env]
