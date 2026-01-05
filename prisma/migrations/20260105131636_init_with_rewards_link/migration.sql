@@ -67,6 +67,7 @@ CREATE TABLE "rewards" (
 CREATE TABLE "redemptions" (
     "id" UUID NOT NULL,
     "customer_id" UUID,
+    "reward_id" UUID,
     "reward_name" VARCHAR(255),
     "shopify_discount_code" VARCHAR(255),
     "points_spent" INTEGER NOT NULL,
@@ -86,3 +87,6 @@ ALTER TABLE "ledger" ADD CONSTRAINT "ledger_customer_id_fkey" FOREIGN KEY ("cust
 
 -- AddForeignKey
 ALTER TABLE "redemptions" ADD CONSTRAINT "redemptions_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "redemptions" ADD CONSTRAINT "redemptions_reward_id_fkey" FOREIGN KEY ("reward_id") REFERENCES "rewards"("id") ON DELETE SET NULL ON UPDATE CASCADE;

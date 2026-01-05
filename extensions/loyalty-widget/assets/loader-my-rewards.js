@@ -1,44 +1,71 @@
 async function loadMyRewardsData() {
+  console.log("🔄 Loading customer redemptions from /apps/loyalty/redemptions...");
+  
   try {
-    // const response = await fetch("/apps/loyalty-widget/api/my-rewards");
-    // const data = await response.json();
-    const data = {
-      rewards: [
-        {
-          code: "FIDELITY45",
-          discountAmount: "45€",
-          expiryDate: "31/03/2025",
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/4c7268a2cfc528f2d73dfa085e60e3794a8db3fb_hkv36m.png",
-          used: false,
-          minimalBuy: "100€",
-        },
-        {
-          code: "FIDELITY27",
-          discountAmount: "27€",
-          expiryDate: "15/02/2025",
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662424/9fb5ee988c3620c1359d72e636c84e7b96da064b_havxvd.png",
-          used: false,
-          minimalBuy: "100€",
-        },
-        {
-          code: "FIDELITY9",
-          discountAmount: "9€",
-          expiryDate: "31/01/2025",
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
-          used: true,
-          minimalBuy: "100€",
-        },
-      ],
-    };
+    // Fetch customer redemptions from app proxy
+    const response = await fetch("/apps/loyalty/redemptions");
+    console.log("📡 Response status:", response.status);
+    
+    const data = await response.json();
+    console.log("📦 API Response:", data);
 
-    renderMyRewards(data.rewards);
-    return data;
+    if (!data.success) {
+      console.error("❌ Failed to load redemptions:", data.error);
+      renderMyRewards([]);
+      return;
+    }
+
+    console.log("✅ Found", data.redemptions.length, "redemptions");
+
+    // Transform API response to widget format
+    const transformedRedemptions = data.redemptions.map(redemption => ({
+      id: redemption.id,
+      code: redemption.discountCode,
+      discountAmount: formatDiscount(
+        redemption.reward.discountType, 
+        redemption.reward.discountValue
+      ),
+      expiryDate: formatDate(redemption.createdAt), // Show redemption date
+      imgUrl: redemption.reward.imageUrl || "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
+      used: false, // For now, all are unused - could track this in future
+      minimalBuy: redemption.reward.minimumCartValue
+        ? `${(redemption.reward.minimumCartValue / 100).toFixed(2)}€`
+        : "Pas de minimum",
+      rewardName: redemption.reward.name,
+      pointsSpent: redemption.pointsSpent,
+    }));
+
+    console.log("🎁 Transformed", transformedRedemptions.length, "redemptions for display");
+
+    renderMyRewards(transformedRedemptions);
+    return { rewards: transformedRedemptions };
   } catch (err) {
-    console.error("Error loading my rewards:", err);
+    console.error("❌ Error loading my rewards:", err);
+    renderMyRewards([]);
   }
+}
+
+function formatDiscount(discountType, discountValue) {
+  switch (discountType) {
+    case "percentage":
+      return `${discountValue}%`;
+    case "fixed_amount":
+      return `${(discountValue / 100).toFixed(2)}€`;
+    case "free_shipping":
+      return "Livraison gratuite";
+    default:
+      return `${discountValue}`;
+  }
+}
+
+function formatDate(dateString) {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function renderMyRewards(rewards) {

@@ -241,30 +241,27 @@ async function main() {
 
   console.log(`✓ Created ${rewards.length} rewards`);
 
-  // Create redemptions
+  // Create redemptions (link to actual rewards)
   const redemptions = [];
-  const rewardTypes = [
-    { name: "5% Discount", points: 200 },
-    { name: "10% Discount", points: 400 },
-    { name: "Free Shipping", points: 150 },
-    { name: "€20 Off", points: 800 },
-    { name: "€50 Off", points: 1800 },
-  ];
+  
+  // Pick only active rewards for redemptions
+  const activeRewards = rewards.filter(r => r.isActive);
 
   for (const customer of customers) {
     const redemptionCount = Math.floor(Math.random() * 3);
     
     for (let i = 0; i < redemptionCount; i++) {
-      const reward = rewardTypes[Math.floor(Math.random() * rewardTypes.length)];
+      const reward = activeRewards[Math.floor(Math.random() * activeRewards.length)];
       const daysAgo = Math.floor(Math.random() * 60);
       
       redemptions.push(
         prisma.redemption.create({
           data: {
             customerId: customer.id,
-            rewardName: reward.name,
+            rewardId: reward.id,  // Link to actual reward
+            rewardName: reward.name,  // Store name as backup
             shopifyDiscountCode: `LOYAL${customer.shopifyCustomerId.slice(-4)}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-            pointsSpent: reward.points,
+            pointsSpent: reward.pointsCost,
             createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
           },
         })

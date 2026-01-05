@@ -106,6 +106,67 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       });
     }
 
+    // GET /apps/loyalty/redemptions - Get customer redemptions (My Rewards)
+    if (path === "redemptions" && customerId) {
+      const customer = await prisma.customer.findFirst({
+        where: { shopifyCustomerId: customerId },
+      });
+
+      if (!customer) {
+        return Response.json({
+          success: false,
+          error: "Customer not found",
+        });
+      }
+
+      const redemptions = await prisma.redemption.findMany({
+        where: { customerId: customer.id },
+        include: {
+          reward: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              imageUrl: true,
+              discountType: true,
+              discountValue: true,
+              minimumCartValue: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return Response.json({
+        success: true,
+        redemptions: redemptions.map((r) => ({
+          id: r.id,
+          discountCode: r.shopifyDiscountCode,
+          pointsSpent: r.pointsSpent,
+          createdAt: r.createdAt?.toISOString(),
+          // Use linked reward data if available, otherwise use stored name
+          reward: r.reward
+            ? {
+                id: r.reward.id,
+                name: r.reward.name,
+                description: r.reward.description,
+                imageUrl: r.reward.imageUrl,
+                discountType: r.reward.discountType,
+                discountValue: r.reward.discountValue,
+                minimumCartValue: r.reward.minimumCartValue,
+              }
+            : {
+                name: r.rewardName || "Unknown Reward",
+                description: null,
+                imageUrl: null,
+                discountType: "fixed_amount",
+                discountValue: 0,
+                minimumCartValue: null,
+              },
+        })),
+      });
+    }
+
     return Response.json({
       success: false,
       error: "Invalid endpoint",
@@ -196,6 +257,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const redemption = await tx.redemption.create({
           data: {
             customerId: customer.id,
+            rewardId: reward.id,
             rewardName: reward.name,
             shopifyDiscountCode: discountCode,
             pointsSpent: reward.pointsCost,

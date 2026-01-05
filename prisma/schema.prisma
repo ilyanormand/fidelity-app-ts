@@ -79,6 +79,9 @@ model Reward {
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
 
+  // Relations
+  redemptions         Redemption[]
+
   @@map("rewards")
 }
 
@@ -86,13 +89,15 @@ model Reward {
 model Redemption {
   id                  String    @id @default(uuid()) @db.Uuid
   customerId          String?   @map("customer_id") @db.Uuid
-  rewardName          String?   @map("reward_name") @db.VarChar(255)  // store reward name as text
+  rewardId            String?   @map("reward_id") @db.Uuid       // link to reward (null if reward deleted)
+  rewardName          String?   @map("reward_name") @db.VarChar(255)  // backup name if reward deleted
   shopifyDiscountCode String?   @map("shopify_discount_code") @db.VarChar(255)
   pointsSpent         Int       @map("points_spent")
   createdAt           DateTime? @default(now()) @map("created_at")
 
   // Relations
   customer            Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  reward              Reward?   @relation(fields: [rewardId], references: [id], onDelete: SetNull)
 
   @@map("redemptions")
 }
