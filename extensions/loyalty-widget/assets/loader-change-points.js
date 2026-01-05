@@ -1,58 +1,77 @@
 async function loadChangePointsData() {
+  console.log("🔄 Loading rewards from /apps/loyalty/rewards...");
+  
   try {
-    // const response = await fetch("/apps/loyalty-widget/api/rewards");
-    // const data = await response.json();
-    const data = {
-      rewards: [
-        {
-          discountAmount: "45€",
-          points: 700,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/4c7268a2cfc528f2d73dfa085e60e3794a8db3fb_hkv36m.png",
-          minimalBuy: "100€",
-        },
-        {
-          discountAmount: "35€",
-          points: 600,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662424/108297663eeb91ee8cc34d4ddd0676a97674c26a_ib1c7w.png",
-          minimalBuy: "100€",
-        },
-        {
-          discountAmount: "27€",
-          points: 500,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662424/9fb5ee988c3620c1359d72e636c84e7b96da064b_havxvd.png",
-          minimalBuy: "100€",
-        },
-        {
-          discountAmount: "21€",
-          points: 400,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662424/9f7ec9a230e3256591f56f6d7ae9ed373616928e_n5afcg.png",
-          minimalBuy: "100€",
-        },
-        {
-          discountAmount: "9€",
-          points: 200,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
-          minimalBuy: "100€",
-        },
-        {
-          discountAmount: "4€",
-          points: 100,
-          imgUrl:
-            "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662424/3068aeb1c128683d9ead364eb1b0ac4bf4976cef_m2kkyi.png",
-          minimalBuy: "100€",
-        },
-      ],
-    };
+    // Fetch real rewards from app proxy
+    const response = await fetch("/apps/loyalty/rewards");
+    console.log("📡 Response status:", response.status);
+    
+    const data = await response.json();
+    console.log("📦 API Response:", data);
 
-    renderChangePointsRewards(data.rewards);
-    return data;
+    if (!data.success) {
+      console.error("❌ Failed to load rewards:", data.error);
+      showEmptyState("Erreur lors du chargement des récompenses");
+      return;
+    }
+
+    console.log("✅ Found", data.rewards.length, "total rewards");
+
+    // Transform API response to widget format
+    const transformedRewards = data.rewards.map(reward => {
+      console.log("Processing reward:", reward.name, "Active:", reward.isActive);
+      return {
+        id: reward.id,
+        name: reward.name,
+        description: reward.description,
+        discountAmount: formatDiscount(reward.discountType, reward.discountValue),
+        points: reward.pointsCost,
+        imgUrl: reward.imageUrl || "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
+        minimalBuy: reward.minimumCartValue 
+          ? `${(reward.minimumCartValue / 100).toFixed(2)}€` 
+          : "Pas de minimum",
+        minimumCartValue: reward.minimumCartValue,
+      };
+    });
+
+    console.log("🎁 Transformed", transformedRewards.length, "rewards for display");
+
+    if (transformedRewards.length === 0) {
+      showEmptyState("Aucune récompense disponible pour le moment");
+      return;
+    }
+
+    renderChangePointsRewards(transformedRewards);
+    return { rewards: transformedRewards };
   } catch (err) {
-    console.error("Error loading rewards:", err);
+    console.error("❌ Error loading rewards:", err);
+    showEmptyState("Erreur de chargement");
+  }
+}
+
+function formatDiscount(discountType, discountValue) {
+  switch (discountType) {
+    case "percentage":
+      return `${discountValue}%`;
+    case "fixed_amount":
+      return `${(discountValue / 100).toFixed(2)}€`;
+    case "free_shipping":
+      return "Livraison gratuite";
+    default:
+      return `${discountValue}`;
+  }
+}
+
+function showEmptyState(message = "Aucune récompense disponible pour le moment") {
+  const container = document.getElementById("rewards-container");
+  if (container) {
+    container.innerHTML = `
+      <div class="reward-card">
+        <p style="text-align: center; color: #999;">
+          ${message}
+        </p>
+      </div>
+    `;
   }
 }
 
@@ -63,28 +82,36 @@ function renderChangePointsRewards(rewards) {
     console.error("rewards-container not found");
     return;
   }
+
   const rewardsHTML = rewards
     .map(
       (reward) => `
-      <div class="reward-card" data-reward-name="${reward.name}">
+      <div class="reward-card" data-reward-id="${reward.id}" data-reward-name="${reward.name}">
         <div class="reward-card-content">
           <img 
             src="${reward.imgUrl}" 
-            alt="logo" 
+            alt="${reward.name}" 
             class="reward-icon" 
             width="74" 
             height="74"
             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3C/svg%3E'"
           >
-          <h4>Bon d'achat de ${reward.discountAmount}</h4>
-          <p>${reward.points} points</p>
-          <button class="redeem-btn" data-points="${reward.points}" data-discount="${reward.discountAmount}">
+          <h4>${reward.name}</h4>
+          <p class="reward-discount">${reward.discountAmount}</p>
+          <p class="reward-points">${reward.points} points</p>
+          <button 
+            class="redeem-btn" 
+            data-reward-id="${reward.id}"
+            data-points="${reward.points}" 
+            data-discount="${reward.discountAmount}"
+            data-minimum="${reward.minimumCartValue || 0}"
+          >
             J'échange mes points
           </button>
         </div>
         <div class="reward-card-hover">
-          <p>Minimum </p>
-          <p>d'achat ${reward.minimalBuy}</p>
+          <p>Minimum d'achat</p>
+          <p>${reward.minimalBuy}</p>
         </div>
       </div>
     `,
@@ -95,33 +122,54 @@ function renderChangePointsRewards(rewards) {
   attachRedeemButtonHandlers();
 }
 
-async function redeemReward(points, discountAmount) {
+async function redeemReward(rewardId, minimumCartValue) {
   try {
-    // const customerId = window.loyaltyConfig?.customerId || "customer_123";
-    // const response = await fetch("/apps/loyalty-widget/api/redeem-reward", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify({
-    //     customerId: customerId,
-    //     points: points,
-    //     discountAmount: discountAmount,
-    //   }),
-    // });
+    // Get current cart total (if available)
+    const cartTotal = await getCurrentCartTotal();
 
-    // Mock response
-    const data = {
-      code: "FWN-12345",
-      minimalBuy: "100€",
-      imgUrl:
-        "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/4c7268a2cfc528f2d73dfa085e60e3794a8db3fb_hkv36m.png",
+    // Call app proxy to redeem points
+    const response = await fetch("/apps/loyalty/redeem", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        rewardId: rewardId,
+        cartTotal: cartTotal,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || "Failed to redeem reward");
+    }
+
+    // Return discount code and details
+    return {
+      code: data.discountCode,
+      minimalBuy: minimumCartValue 
+        ? `${(minimumCartValue / 100).toFixed(2)}€` 
+        : "Pas de minimum",
+      imgUrl: "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/4c7268a2cfc528f2d73dfa085e60e3794a8db3fb_hkv36m.png",
+      newBalance: data.newBalance,
     };
-
-    return data;
   } catch (err) {
     console.error("Error redeeming reward:", err);
     throw err;
+  }
+}
+
+// Helper function to get current cart total
+async function getCurrentCartTotal() {
+  try {
+    // Fetch cart data from Shopify
+    const cartResponse = await fetch('/cart.js');
+    const cart = await cartResponse.json();
+    return cart.total_price || 0; // in cents
+  } catch (err) {
+    console.log("Could not fetch cart total, proceeding without validation");
+    return 0;
   }
 }
 
@@ -135,18 +183,25 @@ function attachRedeemButtonHandlers() {
         return;
       }
 
-      const points = button.getAttribute("data-points");
-      const discountAmount = button.getAttribute("data-discount");
+      const rewardId = button.getAttribute("data-reward-id");
+      const minimumCartValue = parseInt(button.getAttribute("data-minimum") || "0");
       const originalText = button.textContent;
+      
       button.textContent = "Chargement...";
       button.disabled = true;
       button.classList.add("processing");
 
       try {
-        const result = await redeemReward(points, discountAmount);
+        const result = await redeemReward(rewardId, minimumCartValue);
         showRewardModal(result.code, result.minimalBuy, result.imgUrl);
+        
+        // Refresh customer balance after redemption
+        if (window.loadCustomerBalance) {
+          window.loadCustomerBalance();
+        }
       } catch (err) {
-        alert("Une erreur s'est produite. Veuillez réessayer.");
+        const errorMessage = err.message || "Une erreur s'est produite. Veuillez réessayer.";
+        alert(errorMessage);
       } finally {
         button.classList.remove("processing");
         button.textContent = originalText;

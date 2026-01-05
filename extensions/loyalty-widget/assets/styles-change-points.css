@@ -38,7 +38,6 @@
 /* Rewards container */
 .rewards-container {
   display: flex;
-  justify-content: space-between;
   gap: 30px 15px;
   flex-wrap: wrap;
 }

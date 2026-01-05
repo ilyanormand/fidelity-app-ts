@@ -3,7 +3,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 /**
- * App Proxy Route
+ * App Proxy Route (Splat Route)
  * 
  * Storefront URL: https://{shop}/apps/loyalty/*
  * Proxies to: https://{app-url}/proxy/*
@@ -12,19 +12,20 @@ import prisma from "../db.server";
  * - GET  /apps/loyalty/customer - Get customer points balance
  * - GET  /apps/loyalty/rewards - Get available rewards
  * - POST /apps/loyalty/redeem - Redeem points for a reward
+ * - GET  /apps/loyalty/transactions - Get transaction history
  */
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   await authenticate.public.appProxy(request);
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const customerId = url.searchParams.get("logged_in_customer_id");
-  const path = url.pathname.replace("/proxy", "");
+  const path = params["*"]; // Get the splat path
 
   try {
     // GET /apps/loyalty/customer - Get customer balance and info
-    if (path === "/customer" && customerId && shop) {
+    if (path === "customer" && customerId && shop) {
       const customer = await prisma.customer.findFirst({
         where: {
           shopifyCustomerId: customerId,
@@ -44,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // GET /apps/loyalty/rewards - Get available rewards for shop
-    if (path === "/rewards" && shop) {
+    if (path === "rewards" && shop) {
       const rewards = await prisma.reward.findMany({
         where: {
           shopId: shop,
@@ -70,7 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // GET /apps/loyalty/transactions - Get customer transaction history
-    if (path === "/transactions" && customerId) {
+    if (path === "transactions" && customerId) {
       const customer = await prisma.customer.findFirst({
         where: { shopifyCustomerId: customerId },
       });
@@ -108,6 +109,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return Response.json({
       success: false,
       error: "Invalid endpoint",
+      path,
     });
   } catch (error) {
     console.error("Proxy error:", error);
@@ -118,17 +120,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
+export const action = async ({ request, params }: ActionFunctionArgs) => {
   await authenticate.public.appProxy(request);
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const customerId = url.searchParams.get("logged_in_customer_id");
-  const path = url.pathname.replace("/proxy", "");
+  const path = params["*"];
 
   try {
     // POST /apps/loyalty/redeem - Redeem points for a reward
-    if (path === "/redeem" && customerId && shop) {
+    if (path === "redeem" && customerId && shop) {
       const body = await request.json();
       const { rewardId, cartTotal } = body;
 
