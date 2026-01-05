@@ -66,7 +66,7 @@ function showEmptyState(message = "Aucune récompense disponible pour le moment"
   const container = document.getElementById("rewards-container");
   if (container) {
     container.innerHTML = `
-      <div class="reward-card">
+      <div class="fidelity-reward-card">
         <p style="text-align: center; color: #999;">
           ${message}
         </p>
@@ -86,8 +86,8 @@ function renderChangePointsRewards(rewards) {
   const rewardsHTML = rewards
     .map(
       (reward) => `
-      <div class="reward-card" data-reward-id="${reward.id}" data-reward-name="${reward.name}">
-        <div class="reward-card-content">
+      <div class="fidelity-reward-card" data-reward-id="${reward.id}" data-reward-name="${reward.name}">
+        <div class="fidelity-reward-card-content">
           <img 
             src="${reward.imgUrl}" 
             alt="${reward.name}" 
@@ -100,7 +100,7 @@ function renderChangePointsRewards(rewards) {
           <p class="reward-discount">${reward.discountAmount}</p>
           <p class="reward-points">${reward.points} points</p>
           <button 
-            class="redeem-btn" 
+            class="fidelity-redeem-btn" 
             data-reward-id="${reward.id}"
             data-points="${reward.points}" 
             data-discount="${reward.discountAmount}"
@@ -196,12 +196,12 @@ async function getCurrentCartTotal() {
 }
 
 function attachRedeemButtonHandlers() {
-  const buttons = document.querySelectorAll(".redeem-btn");
+  const buttons = document.querySelectorAll(".fidelity-redeem-btn");
 
   buttons.forEach((button) => {
     button.addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (button.classList.contains("processing")) {
+      if (button.classList.contains("fidelity-processing")) {
         return;
       }
 
@@ -217,7 +217,7 @@ function attachRedeemButtonHandlers() {
       
       button.textContent = "Chargement...";
       button.disabled = true;
-      button.classList.add("processing");
+      button.classList.add("fidelity-processing");
 
       try {
         const result = await redeemReward(rewardId, minimumCartValue);
@@ -231,7 +231,7 @@ function attachRedeemButtonHandlers() {
         const errorMessage = err.message || "Une erreur s'est produite. Veuillez réessayer.";
         alert(errorMessage);
       } finally {
-        button.classList.remove("processing");
+        button.classList.remove("fidelity-processing");
         button.textContent = originalText;
         button.disabled = false;
       }
@@ -266,40 +266,40 @@ function showRewardModal(code, minimalBuy, imgUrl) {
   if (!modal) {
     modal = document.createElement("div");
     modal.id = "reward-success-modal";
-    modal.className = "reward-modal";
+    modal.className = "fidelity-reward-modal";
     modal.innerHTML = `
-      <div class="reward-modal-overlay"></div>
-      <div class="reward-modal-content">
+      <div class="fidelity-reward-modal-overlay"></div>
+      <div class="fidelity-reward-modal-content">
         <img src="${imgUrl}" alt="logo" class="reward-modal-icon" width="135" height="135">
         <h3>Félicitations !</h3>
         <p class="modal-message">Tu as échangé tes points, voici ton code :</p>
-        <div class="modal-code-container">
-        <p class="modal-code">${code}</p> 
-        <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="code-revealed-logo">
+        <div class="fidelity-modal-code-container">
+        <p class="fidelity-modal-code">${code}</p> 
+        <img src="https://res.cloudinary.com/dcuqusnsc/image/upload/v1763730011/b37ae00dc6d5f9bd21d959b9577a8c6f607e53d2_ommzhe.svg" alt="copy" class="fidelity-code-revealed-logo">
         </div>
-        <p class="modal-info">Retrouve ta réduction dans la section « Mes récompenses ».</p>
-        <p class="modal-minimum">Minimum de commande : ${minimalBuy}</p>
-        <button class="modal-btn" onclick="closeRewardModal()">J'en profite maintenant</button>
+        <p class="fidelity-modal-info">Retrouve ta réduction dans la section « Mes récompenses ».</p>
+        <p class="fidelity-modal-minimum">Minimum de commande : ${minimalBuy}</p>
+        <button class="fidelity-modal-btn" onclick="closeRewardModal()">J'en profite maintenant</button>
       </div>
     `;
     document.body.appendChild(modal);
   } else {
-    modal.querySelector(".modal-code").textContent = code;
-    modal.querySelector(".modal-minimum").textContent =
+    modal.querySelector(".fidelity-modal-code").textContent = code;
+    modal.querySelector(".fidelity-modal-minimum").textContent =
       `Minimum de commande : ${minimalBuy}`;
     modal.querySelector(".reward-modal-icon").src = imgUrl;
   }
 
-  modal.classList.add("active");
+  modal.classList.add("fidelity-active");
   document.body.style.overflow = "hidden";
   modal
-    .querySelector(".reward-modal-overlay")
+    .querySelector(".fidelity-reward-modal-overlay")
     .addEventListener("click", closeRewardModal);
   attachModalCodeCopyHandler(code);
 }
 
 function attachModalCodeCopyHandler(code) {
-  const codeContainer = document.querySelector(".modal-code-container");
+  const codeContainer = document.querySelector(".fidelity-modal-code-container");
   if (!codeContainer) return;
   const newCodeContainer = codeContainer.cloneNode(true);
   codeContainer.parentNode.replaceChild(newCodeContainer, codeContainer);
@@ -312,13 +312,13 @@ function attachModalCodeCopyHandler(code) {
       await navigator.clipboard.writeText(code);
 
       isCopying = true;
-      const codeText = newCodeContainer.querySelector(".modal-code");
+      const codeText = newCodeContainer.querySelector(".fidelity-modal-code");
       codeText.textContent = "Copié!";
-      newCodeContainer.classList.add("copied");
+      newCodeContainer.classList.add("fidelity-copied");
 
       setTimeout(() => {
         codeText.textContent = code;
-        newCodeContainer.classList.remove("copied");
+        newCodeContainer.classList.remove("fidelity-copied");
         isCopying = false;
       }, 2000);
     } catch (err) {
@@ -332,7 +332,7 @@ function attachModalCodeCopyHandler(code) {
 function closeRewardModal() {
   const modal = document.getElementById("reward-success-modal");
   if (modal) {
-    modal.classList.remove("active");
+    modal.classList.remove("fidelity-active");
     document.body.style.overflow = "";
   }
 }

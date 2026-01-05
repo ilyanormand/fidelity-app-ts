@@ -50,7 +50,7 @@
 }
 
 /* Task cards */
-.task-card {
+.fidelity-task-card {
   position: relative;
   width: 159px;
   height: 101px;
@@ -67,16 +67,16 @@
     box-shadow 0.3s ease;
 }
 
-.task-card:hover {
+.fidelity-task-card:hover {
   transform: translateY(-3px);
   box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
 }
 
-.task-card.completed {
+.fidelity-task-card.fidelity-completed {
   filter: grayscale(50%);
 }
 
-.task-card.completed::after {
+.fidelity-task-card.fidelity-completed::after {
   content: "Completed ✅";
   position: absolute;
   top: 0;
@@ -125,13 +125,13 @@
     object-fit: contain;
     flex-shrink: 0;
   }
-  .task-card {
+  .fidelity-task-card {
     width: 100%;
     max-width: 300px;
     padding: 10px 5px;
   }
 
-  .task-card.completed::after {
+  .fidelity-task-card.fidelity-completed::after {
     text-align: center;
     font-size: 15px;
   }

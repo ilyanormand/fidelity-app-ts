@@ -50,11 +50,11 @@
 }
 
 /* My Reward cards */
-.my-reward-card {
+.fidelity-my-reward-card {
   cursor: pointer;
   position: relative;
   width: 174px;
-  height: 181px;
+  height: max-content;
   padding: 7px 7px 15px 7px;
   border-radius: 12px;
   background-color: var(--color-basic);
@@ -70,19 +70,19 @@
   overflow: hidden;
 }
 
-.my-reward-card:not(.used):hover {
+.fidelity-my-reward-card:not(.fidelity-used):hover {
   transform: translateY(-3px);
   box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.3);
   background-color: #f6ffc6;
 }
 
-.my-reward-card.used {
+.fidelity-my-reward-card.fidelity-used {
   filter: grayscale(70%);
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.my-reward-card-content {
+.fidelity-my-reward-card-content {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -92,20 +92,26 @@
   position: relative;
   z-index: 1;
 }
-.my-reward-card-content h4,
-.my-reward-card-content p {
+.fidelity-my-reward-card-content h4,
+.fidelity-my-reward-card-content p {
   color: #000000;
 }
 
 /* Hover show only button */
-.my-reward-card:not(.used):hover .my-reward-card-content .my-reward-icon,
-.my-reward-card:not(.used):hover .my-reward-card-content h4,
-.my-reward-card:not(.used):hover .my-reward-card-content p {
+.fidelity-my-reward-card:not(.fidelity-used):hover
+  .fidelity-my-reward-card-content
+  .my-reward-icon,
+.fidelity-my-reward-card:not(.fidelity-used):hover
+  .fidelity-my-reward-card-content
+  h4,
+.fidelity-my-reward-card:not(.fidelity-used):hover
+  .fidelity-my-reward-card-content
+  p {
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
-.my-reward-card-content .use-reward-btn {
+.fidelity-my-reward-card-content .fidelity-use-reward-btn {
   position: relative;
   z-index: 2;
 }
@@ -127,7 +133,7 @@
   z-index: 0;
 }
 
-.my-reward-card:not(.used):hover .my-reward-card-hover {
+.fidelity-my-reward-card:not(.fidelity-used):hover .my-reward-card-hover {
   opacity: 1;
 }
 
@@ -140,7 +146,7 @@
   color: #000000;
 }
 
-.my-reward-card h4 {
+.fidelity-my-reward-card h4 {
   font-family: Barlow;
   font-weight: 700;
   font-style: Bold;
@@ -153,7 +159,7 @@
   padding: 0px 10px;
 }
 
-.my-reward-card p {
+.fidelity-my-reward-card p {
   font-family: Barlow;
   font-weight: 700;
   font-style: Bold;
@@ -164,7 +170,7 @@
   margin: 0 0 15px 0;
 }
 
-.use-reward-btn {
+.fidelity-use-reward-btn {
   border-radius: 20px;
   margin-top: auto;
   padding: 0px 10px;
@@ -180,20 +186,20 @@
   font-family: var(--font-family-basic), sans-serif;
 }
 
-.use-reward-btn:hover {
+.fidelity-use-reward-btn:hover {
   background-color: #404040;
 }
 
-.use-reward-btn.disabled {
+.fidelity-use-reward-btn.fidelity-disabled {
   background-color: #999;
   cursor: not-allowed;
 }
 
-.use-reward-btn.disabled:hover {
+.fidelity-use-reward-btn.fidelity-disabled:hover {
   background-color: #999;
 }
 
-.use-reward-btn.code-revealed {
+.fidelity-use-reward-btn.fidelity-code-revealed {
   background-color: black;
   font-weight: 700;
   font-style: Bold;
@@ -208,11 +214,11 @@
   gap: 5px;
 }
 
-.use-reward-btn.code-revealed:hover {
+.fidelity-use-reward-btn.fidelity-code-revealed:hover {
   filter: brightness(0.95);
 }
 
-.code-revealed-logo {
+.fidelity-code-revealed-logo {
   filter: brightness(0) invert(1);
   width: 12px;
   height: 12px;
@@ -220,7 +226,7 @@
   flex-shrink: 0;
 }
 
-.use-reward-btn.copied {
+.fidelity-use-reward-btn.fidelity-copied {
   color: white;
   transition: background-color 0.3s ease;
 }
@@ -245,17 +251,17 @@
     padding: 0 10px;
   }
 
-  .my-reward-card {
+  .fidelity-my-reward-card {
     width: 100%;
     max-width: 130px;
     padding: 7px 7px 7px 7px;
   }
 
-  .my-reward-card p {
+  .fidelity-my-reward-card p {
     margin: 0;
   }
 
-  .use-reward-btn {
+  .fidelity-use-reward-btn {
     border-radius: 20px;
     background-color: black;
     width: 101px;
