@@ -3,6 +3,8 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { processRedemption } from "../utils/redemption.server";
 import { createLoyaltyDiscount } from "../utils/createShopifyDiscount.server";
+import { syncBalanceToShopify } from "../utils/metafields.server";
+import shopify from "../shopify.server";
 
 /**
  * App Proxy Route (Splat Route)
@@ -26,11 +28,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const path = params["*"]; // Get the splat path
 
   try {
+    // Normalize customerId to GID if it's numeric (DB usually stores GID)
+    let gid = customerId;
+    if (customerId && !customerId.startsWith("gid://")) {
+      gid = `gid://shopify/Customer/${customerId}`;
+    }
+
     // GET /apps/loyalty/customer - Get customer balance and info
-    if (path === "customer" && customerId && shop) {
+    if (path === "customer" && gid && shop) {
       const customer = await prisma.customer.findFirst({
         where: {
-          shopifyCustomerId: customerId,
+          shopifyCustomerId: gid,
           shopId: shop,
         },
         select: {
@@ -39,6 +47,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           customerTags: true,
         },
       });
+
+      // Fire and forget sync to ensure metafields are up to date
+      if (customer) {
+        shopify.unauthenticated.admin(shop).then(async ({ admin }) => {
+          await syncBalanceToShopify(admin, gid, customer.currentBalance || 0);
+        }).catch(err => console.error("Proxy sync error:", err));
+      }
 
       return Response.json({
         success: true,
@@ -73,9 +88,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     // GET /apps/loyalty/transactions - Get customer transaction history
-    if (path === "transactions" && customerId) {
+    if (path === "transactions" && gid) {
       const customer = await prisma.customer.findFirst({
-        where: { shopifyCustomerId: customerId },
+        where: { shopifyCustomerId: gid },
       });
 
       if (!customer) {
@@ -109,9 +124,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     // GET /apps/loyalty/redemptions - Get customer redemptions (My Rewards)
-    if (path === "redemptions" && customerId) {
+    if (path === "redemptions" && gid) {
       const customer = await prisma.customer.findFirst({
-        where: { shopifyCustomerId: customerId },
+        where: { shopifyCustomerId: gid },
       });
 
       if (!customer) {
@@ -225,8 +240,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }, { status: 400 });
       }
 
+      // Convert to GID for internal consistency
+      let gid = customerId;
+      if (customerId && !customerId.startsWith("gid://")) {
+        gid = `gid://shopify/Customer/${customerId}`;
+      }
+
       // Call shared utility directly to avoid internal network calls and 405 errors
-      const result = await processRedemption(customerId, rewardId, shop, cartTotal);
+      const result = await processRedemption(gid, rewardId, shop, cartTotal);
       return Response.json(result, { status: result.status || (result.success ? 200 : 400) });
     }
 

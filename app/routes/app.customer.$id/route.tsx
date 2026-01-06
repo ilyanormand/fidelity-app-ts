@@ -83,8 +83,8 @@ export default function Customer() {
       return;
     }
 
-    const amount = operationType[0] === "add" 
-      ? Number(pointsAmount) 
+    const amount = operationType[0] === "add"
+      ? Number(pointsAmount)
       : -Number(pointsAmount);
 
     try {
@@ -111,7 +111,7 @@ export default function Customer() {
       setSubmitSuccess(
         `Successfully ${operationType[0] === "add" ? "added" : "subtracted"} ${pointsAmount} points. New balance: ${result.newBalance}`
       );
-      
+
       // Revalidate the page data to show updated balance
       setTimeout(() => {
         revalidator.revalidate();
@@ -451,7 +451,7 @@ export default function Customer() {
             />
 
             <Text as="p" variant="bodySm" tone="subdued">
-              {operationType[0] === "add" 
+              {operationType[0] === "add"
                 ? `This will add ${pointsAmount || 0} points to the customer's balance.`
                 : `This will subtract ${pointsAmount || 0} points from the customer's balance.`}
             </Text>

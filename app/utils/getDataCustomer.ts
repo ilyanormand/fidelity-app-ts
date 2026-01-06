@@ -1,9 +1,15 @@
 import prisma from "../db.server";
 
 export const getDataCustomer = async (shopifyCustomerId: string) => {
+  // Handle both full GID and numeric ID
+  let gid = shopifyCustomerId;
+  if (!shopifyCustomerId.startsWith("gid://")) {
+    gid = `gid://shopify/Customer/${shopifyCustomerId}`;
+  }
+
   // Find customer by shopifyCustomerId
   const customer = await prisma.customer.findFirst({
-    where: { shopifyCustomerId },
+    where: { shopifyCustomerId: gid },
     include: {
       ledgerEntries: {
         orderBy: { createdAt: "desc" },
@@ -79,10 +85,9 @@ export const getDataCustomer = async (shopifyCustomerId: string) => {
       .reduce((sum, e) => sum + e.amount, 0)
   );
 
-  // Parse customer name from shopifyCustomerId or use default
-  const nameParts = customer.shopifyCustomerId.split("_");
-  const name = nameParts.length > 1 ? nameParts[1] : "Customer";
-  const secondName = `ID-${customer.shopifyCustomerId.slice(-4)}`;
+  // Use real data from DB
+  const name = customer.displayName || (customer.firstName ? `${customer.firstName} ${customer.lastName || ""}` : "Customer");
+  const secondName = customer.email || `ID-${customer.shopifyCustomerId.split("/").pop()}`;
 
   return {
     id: customer.id,

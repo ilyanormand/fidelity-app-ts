@@ -27,7 +27,7 @@ export async function createLoyaltyDiscount(
 ): Promise<DiscountResult> {
   // Generate unique code
   const code = `LOYAL${customerId.slice(-4)}_${Date.now().toString(36).toUpperCase()}`;
-  
+
   // Calculate dates
   const startsAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000).toISOString();
@@ -68,7 +68,7 @@ export async function createLoyaltyDiscount(
     endsAt: expiresAt,
     customerSelection: {
       customers: {
-        add: [`gid://shopify/Customer/${customerId}`]
+        add: [customerId.startsWith("gid://") ? customerId : `gid://shopify/Customer/${customerId}`]
       }
     },
     usageLimit: 1, // Single use only

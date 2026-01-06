@@ -1,6 +1,7 @@
 import shopify, { sessionStorage } from "../shopify.server";
 import prisma from "../db.server";
 import { createLoyaltyDiscount } from "./createShopifyDiscount.server";
+import { syncBalanceToShopify } from "./metafields.server";
 
 export interface RedemptionResult {
     success: boolean;
@@ -55,15 +56,29 @@ export async function processRedemption(
         }
 
         // 3. Find Customer
-        const customer = await prisma.customer.findFirst({
+        console.log(`🔍 Looking up customer: shop=${shop}, shopifyCustomerId=${shopifyCustomerId}`);
+        let customer = await prisma.customer.findFirst({
             where: {
                 shopifyCustomerId,
                 shopId: shop,
             },
         });
-
         if (!customer) {
-            return { success: false, error: "Customer not found", status: 404 };
+            console.warn(`⚠️ Customer not found. Auto-creating customer record for ${shopifyCustomerId}`);
+            try {
+                customer = await prisma.customer.create({
+                    data: {
+                        shopifyCustomerId,
+                        shopId: shop,
+                        currentBalance: 0,
+                        customerTags: [],
+                    }
+                });
+                console.log(`✅ Created new customer record: ${customer.id}`);
+            } catch (createError) {
+                console.error("Failed to auto-create customer:", createError);
+                return { success: false, error: "Customer not found and creation failed", status: 500 };
+            }
         }
 
         // 4. Find Reward
@@ -164,6 +179,23 @@ export async function processRedemption(
 
             return { redemption, updatedCustomer };
         });
+
+        // 9. Sync Metafield (Fire and forget)
+        if (admin) {
+            syncBalanceToShopify(admin, shopifyCustomerId, result.updatedCustomer.currentBalance || 0)
+                .then(res => {
+                    if (!res.success) console.warn("Metafield sync failed after redemption:", res.error);
+                })
+                .catch(err => console.error("Metafield sync error:", err));
+        } else {
+            // Try to get unauthenticated admin if we didn't have it (though step 2 should have caught this)
+            try {
+                const context = await shopify.unauthenticated.admin(shop);
+                await syncBalanceToShopify(context.admin, shopifyCustomerId, result.updatedCustomer.currentBalance || 0);
+            } catch (err) {
+                console.warn("Could not sync metafield (no admin context):", err);
+            }
+        }
 
         // 9. Return Success Response
         return {

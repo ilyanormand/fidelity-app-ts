@@ -39,7 +39,7 @@ export async function ensureLoyaltyMetafields(admin: any) {
     });
 
     const data = await response.json();
-    
+
     // Check if already exists (code: TAKEN)
     const errors = data.data?.metafieldDefinitionCreate?.userErrors || [];
     const alreadyExists = errors.some((e: any) => e.code === "TAKEN");
@@ -91,7 +91,10 @@ export async function syncBalanceToShopify(
     }
   `;
 
-  const gid = `gid://shopify/Customer/${shopifyCustomerId}`;
+  let gid = shopifyCustomerId;
+  if (!shopifyCustomerId.startsWith("gid://")) {
+    gid = `gid://shopify/Customer/${shopifyCustomerId}`;
+  }
 
   try {
     const response = await admin.graphql(mutation, {
@@ -142,7 +145,10 @@ export async function getBalanceFromShopify(
     }
   `;
 
-  const gid = `gid://shopify/Customer/${shopifyCustomerId}`;
+  let gid = shopifyCustomerId;
+  if (!shopifyCustomerId.startsWith("gid://")) {
+    gid = `gid://shopify/Customer/${shopifyCustomerId}`;
+  }
 
   try {
     const response = await admin.graphql(query, {

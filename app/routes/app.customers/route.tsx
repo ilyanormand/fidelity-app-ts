@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, Link } from "react-router";
+import { useLoaderData, Link, useSubmit, useNavigation } from "react-router";
 import { authenticate } from "../../shopify.server";
 import {
   Card,
@@ -32,14 +32,22 @@ const PAGE_SIZE = 5;
 
 export default function Customers() {
   const { customers } = useLoaderData<typeof loader>();
+  const submit = useSubmit();
+  const navigation = useNavigation();
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+
+  const isLoading = navigation.state === "submitting" && navigation.formMethod === "POST";
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     setPage(0);
   }, []);
+
+  const handleSync = () => {
+    submit(null, { method: "post", action: "/api/import-customers" });
+  };
 
   const filtered = customers.filter((c: Customer) =>
     `${c.name} ${c.email}`.toLowerCase().includes(search.toLowerCase()),
@@ -76,7 +84,7 @@ export default function Customers() {
     c.totalSpent.toLocaleString("en-US"),
 
     <Link
-      to={`/app/customer/${c.shopifyCustomerId}`}
+      to={`/app/customer/${c.shopifyCustomerId.split("/").pop()}`}
       style={{ textDecoration: "none", color: "inherit" }}
     >
       View history
@@ -100,14 +108,19 @@ export default function Customers() {
       <Box padding="0">
         <BlockStack gap="400">
           <InlineStack gap="400" align="start" blockAlign="end">
-            <Text
-              as="p"
-              fontWeight="regular"
-              variant="headingSm"
-              tone="disabled"
-            >
-              Manage all customers in your loyalty program.
-            </Text>
+            <div style={{ flex: 1 }}>
+              <Text
+                as="p"
+                fontWeight="regular"
+                variant="headingSm"
+                tone="disabled"
+              >
+                Manage all customers in your loyalty program.
+              </Text>
+            </div>
+            <Button onClick={handleSync} loading={isLoading} variant="primary">
+              Sync Customers
+            </Button>
           </InlineStack>
           <Card roundedAbove="sm" padding="0">
             {/* HEADER OF TABLE */}

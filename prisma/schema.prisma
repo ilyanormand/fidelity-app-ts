@@ -36,6 +36,10 @@ model Customer {
   shopId              String       @map("shop_id") @db.VarChar(255)
   currentBalance      Int?         @default(0) @map("current_balance")
   customerTags        String[]     @map("customer_tags") @db.Text
+  firstName           String?      @map("first_name") @db.VarChar(255)
+  lastName            String?      @map("last_name") @db.VarChar(255)
+  email               String?      @map("email") @db.VarChar(255)
+  displayName         String?      @map("display_name") @db.VarChar(255)
   updatedAt           DateTime?    @updatedAt @map("updated_at")
 
   // Relations

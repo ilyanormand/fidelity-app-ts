@@ -28,7 +28,7 @@
         {% endif %}
       </div>
       <div class="loyalty-navbar-points">
-        <p>422</p>
+        <p id="loyalty-navbar-points">...</p>
         <p>points</p>
       </div>
       <div class="loyalty-navbar-buttons">
@@ -121,6 +121,32 @@
     customerEmail: '{{ customer.email }}',
     shop: '{{ shop.permanent_domain }}',
   };
+
+  // Fetch points balance
+  (function() {
+    const pointsElement = document.getElementById('loyalty-navbar-points');
+    if (window.loyaltyConfig.customerId) {
+        fetch('/apps/loyalty/customer', {
+            headers: {
+                'ngrok-skip-browser-warning': 'true'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.customer) {
+                pointsElement.textContent = data.customer.currentBalance || 0;
+            } else {
+                pointsElement.textContent = 0;
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching points:', err);
+            pointsElement.textContent = 0;
+        });
+    } else {
+        pointsElement.textContent = 0;
+    }
+  })();
 </script>
 
 <script src="{{ 'loader-my-rewards.js' | asset_url }}" defer></script>
