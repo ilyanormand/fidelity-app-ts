@@ -29,6 +29,7 @@ async function loadMyProgramData() {
     };
 
     renderMyProgramTasks(data.tasks);
+    checkTasksCompletionAndToggleRewardsButton(data.tasks);
     return data;
   } catch (err) {
     console.error("Error loading data:", err);
@@ -66,12 +67,36 @@ function renderMyProgramTasks(tasks) {
   container.innerHTML = tasksHTML;
 }
 
+// Check if all first three tasks are completed and toggle rewards button visibility
+function checkTasksCompletionAndToggleRewardsButton(tasks) {
+  // Get first three tasks
+  const firstThreeTasks = tasks.slice(0, 3);
+  
+  // Check if all three tasks are completed
+  const allCompleted = firstThreeTasks.length === 3 && 
+                       firstThreeTasks.every(task => task.isCompleted === true);
+  
+  // Find all buttons with data-page="my-rewards-content"
+  const rewardsButtons = document.querySelectorAll('button[data-page="my-rewards-content"]');
+  
+  rewardsButtons.forEach(button => {
+    if (allCompleted) {
+      button.style.display = '';
+    } else {
+      button.style.display = 'none';
+    }
+  });
+}
+
+// Make function globally available
+window.checkTasksCompletionAndToggleRewardsButton = checkTasksCompletionAndToggleRewardsButton;
+
 document.addEventListener("DOMContentLoaded", () => {
   const myProgramPage = document.getElementById("my-program-content");
 
-  if (myProgramPage && myProgramPage.style.display !== "none") {
-    loadMyProgramData();
-  }
+  // Load data immediately to check task completion status
+  loadMyProgramData();
+
   if (myProgramPage) {
     myProgramPage.addEventListener("pageShown", () => {
       loadMyProgramData();
