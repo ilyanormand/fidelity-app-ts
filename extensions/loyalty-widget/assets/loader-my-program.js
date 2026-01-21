@@ -7,7 +7,6 @@ async function loadMyProgramData() {
         {
           task: "1€ dépensé = 1 point",
           reward: 1,
-          isCompleted: false,
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763561990/busket-icon-task_ghqwbs.svg",
@@ -15,7 +14,6 @@ async function loadMyProgramData() {
         {
           task: "Créez vous un compte client",
           reward: 15,
-          isCompleted: true, // Тестовая completed задача
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763568092/user-icon-task_qryf1s.svg",
@@ -23,7 +21,6 @@ async function loadMyProgramData() {
         {
           task: "Inscription à la newsletter",
           reward: 100,
-          isCompleted: false,
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763568125/newaletter-icon-task_zyw8cl.svg",
@@ -48,7 +45,7 @@ function renderMyProgramTasks(tasks) {
   const tasksHTML = tasks
     .map(
       (task) => `
-      <div class="fidelity-task-card ${task.isCompleted ? "fidelity-completed" : ""}" data-task-id="${task.task}">
+      <div class="fidelity-task-card" data-task-id="${task.task}">
         <img 
           src="${task.imgUrl}" 
           alt="logo" 
