@@ -152,35 +152,119 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           },
         },
         orderBy: { createdAt: "desc" },
+        take: 20, // Limit to last 20 redemptions for performance
       });
+
+      // Fetch discount usage from Shopify to mark as used
+      let usageMap: Record<string, boolean> = {};
+
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shop);
+        const codes = redemptions
+          .map(r => r.shopifyDiscountCode)
+          .filter(c => c) as string[];
+
+        if (codes.length > 0) {
+          // Construct query with aliases to fetch all codes in one request
+          // codeDiscountNodeByCode takes a single code, so we use aliases like code_0: ... code_1: ...
+          // Deduplicate codes first
+          const uniqueCodes = [...new Set(codes)];
+
+          const queryParts = uniqueCodes.map((code, index) => `
+            code_${index}: codeDiscountNodeByCode(code: "${code}") {
+              codeDiscount {
+                ... on DiscountCodeBasic {
+                  codes(first: 1) {
+                    edges {
+                      node {
+                        asyncUsageCount
+                      }
+                    }
+                  }
+                }
+                ... on DiscountCodeBxgy {
+                   codes(first: 1) {
+                    edges {
+                      node {
+                        asyncUsageCount
+                      }
+                    }
+                  }
+                }
+                ... on DiscountCodeFreeShipping {
+                   codes(first: 1) {
+                    edges {
+                      node {
+                        asyncUsageCount
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `);
+
+          const response = await admin.graphql(`
+            query GetDiscountUsage {
+              ${queryParts.join('\n')}
+            }
+          `);
+
+          const data = await response.json();
+
+          // Map results back to codes
+          if (data.data) {
+            uniqueCodes.forEach((code, index) => {
+              const alias = `code_${index}`;
+              const result = data.data[alias];
+
+              if (result?.codeDiscount?.codes?.edges?.length > 0) {
+                const usageCount = result.codeDiscount.codes.edges[0].node.asyncUsageCount;
+                if (usageCount > 0) {
+                  usageMap[code] = true;
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch discount usage:", err);
+        // Continue without usage info (defaults to false)
+      }
 
       return Response.json({
         success: true,
-        redemptions: redemptions.map((r) => ({
-          id: r.id,
-          discountCode: r.shopifyDiscountCode,
-          pointsSpent: r.pointsSpent,
-          createdAt: r.createdAt?.toISOString(),
-          // Use linked reward data if available, otherwise use stored name
-          reward: r.reward
-            ? {
-              id: r.reward.id,
-              name: r.reward.name,
-              description: r.reward.description,
-              imageUrl: r.reward.imageUrl,
-              discountType: r.reward.discountType,
-              discountValue: r.reward.discountValue,
-              minimumCartValue: r.reward.minimumCartValue,
-            }
-            : {
-              name: r.rewardName || "Unknown Reward",
-              description: null,
-              imageUrl: null,
-              discountType: "fixed_amount",
-              discountValue: 0,
-              minimumCartValue: null,
-            },
-        })),
+        redemptions: redemptions.map((r) => {
+          const isUsed = r.shopifyDiscountCode ? !!usageMap[r.shopifyDiscountCode] : false;
+
+          return {
+            id: r.id,
+            discountCode: r.shopifyDiscountCode,
+            pointsSpent: r.pointsSpent,
+            createdAt: r.createdAt?.toISOString(),
+            // Pass usage status to frontend
+            used: isUsed,
+            // Use linked reward data if available, otherwise use stored name
+            reward: r.reward
+              ? {
+                id: r.reward.id,
+                name: r.reward.name,
+                description: r.reward.description,
+                imageUrl: r.reward.imageUrl,
+                discountType: r.reward.discountType,
+                discountValue: r.reward.discountValue,
+                minimumCartValue: r.reward.minimumCartValue,
+              }
+              : {
+                name: r.rewardName || "Unknown Reward",
+                description: null,
+                imageUrl: null,
+                discountType: "fixed_amount",
+                discountValue: 0,
+                minimumCartValue: null,
+              },
+          };
+        }),
       });
     }
 

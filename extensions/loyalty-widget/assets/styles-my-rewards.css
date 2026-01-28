@@ -36,7 +36,6 @@
 /* My Rewards list container */
 .my-rewards-list {
   display: flex;
-  justify-content: space-between;
   gap: 30px 15px;
   flex-wrap: wrap;
 }
@@ -92,21 +91,16 @@
   position: relative;
   z-index: 1;
 }
+
 .fidelity-my-reward-card-content h4,
 .fidelity-my-reward-card-content p {
   color: #000000;
 }
 
 /* Hover show only button */
-.fidelity-my-reward-card:not(.fidelity-used):hover
-  .fidelity-my-reward-card-content
-  .my-reward-icon,
-.fidelity-my-reward-card:not(.fidelity-used):hover
-  .fidelity-my-reward-card-content
-  h4,
-.fidelity-my-reward-card:not(.fidelity-used):hover
-  .fidelity-my-reward-card-content
-  p {
+.fidelity-my-reward-card:not(.fidelity-used):hover .fidelity-my-reward-card-content .my-reward-icon,
+.fidelity-my-reward-card:not(.fidelity-used):hover .fidelity-my-reward-card-content h4,
+.fidelity-my-reward-card:not(.fidelity-used):hover .fidelity-my-reward-card-content p {
   opacity: 0;
   transition: opacity 0.3s ease;
 }

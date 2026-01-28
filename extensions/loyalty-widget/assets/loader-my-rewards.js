@@ -1,11 +1,11 @@
 async function loadMyRewardsData() {
   console.log("🔄 Loading customer redemptions from /apps/loyalty/redemptions...");
-  
+
   try {
     // Fetch customer redemptions from app proxy
     const response = await fetch("/apps/loyalty/redemptions");
     console.log("📡 Response status:", response.status);
-    
+
     const data = await response.json();
     console.log("📦 API Response:", data);
 
@@ -22,12 +22,12 @@ async function loadMyRewardsData() {
       id: redemption.id,
       code: redemption.discountCode,
       discountAmount: formatDiscount(
-        redemption.reward.discountType, 
+        redemption.reward.discountType,
         redemption.reward.discountValue
       ),
       expiryDate: formatDate(redemption.createdAt), // Show redemption date
       imgUrl: redemption.reward.imageUrl || "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
-      used: false, // For now, all are unused - could track this in future
+      used: redemption.used || false,
       minimalBuy: redemption.reward.minimumCartValue
         ? `${(redemption.reward.minimumCartValue / 100).toFixed(2)}€`
         : "Pas de minimum",
@@ -36,6 +36,7 @@ async function loadMyRewardsData() {
     }));
 
     console.log("🎁 Transformed", transformedRedemptions.length, "redemptions for display");
+    console.log("📊 Used status:", transformedRedemptions.map(r => ({ code: r.code, used: r.used })));
 
     renderMyRewards(transformedRedemptions);
     return { rewards: transformedRedemptions };
