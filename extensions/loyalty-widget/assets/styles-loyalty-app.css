@@ -28,6 +28,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
 .loyalty-navbar-title {
   color: #000000;
   margin-left: 12px;
+  margin-bottom: 14px;
   font-size: 24px;
   font-weight: 700;
   font-family: "Barlow", sans-serif;
@@ -38,6 +39,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
 }
 .loyalty-navbar-points {
   margin-left: 12px;
+  margin-bottom: 9px;
   display: flex;
   align-items: flex-end;
   gap: 5px;
@@ -81,7 +83,6 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
   background-color: var(--color-secondary);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 0;
   border-radius: 12px;
   overflow: hidden;

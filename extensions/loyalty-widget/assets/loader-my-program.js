@@ -7,7 +7,6 @@ async function loadMyProgramData() {
         {
           task: "1€ dépensé = 1 point",
           reward: 1,
-          isCompleted: false,
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763561990/busket-icon-task_ghqwbs.svg",
@@ -15,7 +14,6 @@ async function loadMyProgramData() {
         {
           task: "Créez vous un compte client",
           reward: 15,
-          isCompleted: true, // Тестовая completed задача
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763568092/user-icon-task_qryf1s.svg",
@@ -23,7 +21,6 @@ async function loadMyProgramData() {
         {
           task: "Inscription à la newsletter",
           reward: 100,
-          isCompleted: false,
           isActive: true,
           imgUrl:
             "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763568125/newaletter-icon-task_zyw8cl.svg",
@@ -32,6 +29,7 @@ async function loadMyProgramData() {
     };
 
     renderMyProgramTasks(data.tasks);
+    checkTasksCompletionAndToggleRewardsButton(data.tasks);
     return data;
   } catch (err) {
     console.error("Error loading data:", err);
@@ -48,7 +46,7 @@ function renderMyProgramTasks(tasks) {
   const tasksHTML = tasks
     .map(
       (task) => `
-      <div class="fidelity-task-card ${task.isCompleted ? "fidelity-completed" : ""}" data-task-id="${task.task}">
+      <div class="fidelity-task-card" data-task-id="${task.task}">
         <img 
           src="${task.imgUrl}" 
           alt="logo" 
@@ -69,12 +67,36 @@ function renderMyProgramTasks(tasks) {
   container.innerHTML = tasksHTML;
 }
 
+// Check if all first three tasks are completed and toggle rewards button visibility
+function checkTasksCompletionAndToggleRewardsButton(tasks) {
+  // Get first three tasks
+  const firstThreeTasks = tasks.slice(0, 3);
+  
+  // Check if all three tasks are completed
+  const allCompleted = firstThreeTasks.length === 3 && 
+                       firstThreeTasks.every(task => task.isCompleted === true);
+  
+  // Find all buttons with data-page="my-rewards-content"
+  const rewardsButtons = document.querySelectorAll('button[data-page="my-rewards-content"]');
+  
+  rewardsButtons.forEach(button => {
+    if (allCompleted) {
+      button.style.display = '';
+    } else {
+      button.style.display = 'none';
+    }
+  });
+}
+
+// Make function globally available
+window.checkTasksCompletionAndToggleRewardsButton = checkTasksCompletionAndToggleRewardsButton;
+
 document.addEventListener("DOMContentLoaded", () => {
   const myProgramPage = document.getElementById("my-program-content");
 
-  if (myProgramPage && myProgramPage.style.display !== "none") {
-    loadMyProgramData();
-  }
+  // Load data immediately to check task completion status
+  loadMyProgramData();
+
   if (myProgramPage) {
     myProgramPage.addEventListener("pageShown", () => {
       loadMyProgramData();
