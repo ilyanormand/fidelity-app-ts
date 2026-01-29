@@ -2,7 +2,7 @@
 
 client_id = "6ca88552a33182eec3ac2453f573578c"
 name = "fidelity-app-ts"
-application_url = "https://example.com"
+application_url = "https://fidelity-app-ts.fly.dev"
 embedded = true
 
 [build]
@@ -16,12 +16,30 @@ api_version = "2026-01"
   uri = "/webhooks/app/scopes_update"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
+  topics = [ "customers/create" ]
+  uri = "/webhooks/app/customers_create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/update" ]
+  uri = "/webhooks/app/customers_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/delete" ]
+  uri = "/webhooks/app/customers_delete"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_discounts,write_discounts,read_customers,write_customers"
+# Full scopes for loyalty program app
+scopes = "write_customers,read_customers,write_discounts,read_discounts,read_orders,write_price_rules,write_app_proxy,read_products,write_products,read_discounts,write_discounts,read_customers,write_customers"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://fidelity-app-ts.fly.dev/auth/callback",
+  "https://fidelity-app-ts.fly.dev/auth/shopify/callback",
+  "https://fidelity-app-ts.fly.dev/api/auth/callback"
+]
+
+[app_proxy]
+url = "/proxy"
+prefix = "apps"
+subpath = "loyalty"

@@ -1,0 +1,237 @@
+<div id="loyalty-spa-root" 
+  class="{% if customer %}customer-logged-in{% else %}customer-not-logged-in{% endif %}"
+  data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
+  {% if block.settings.background_image %}
+  style="
+    background-image: url('{{ block.settings.background_image | image_url }}');
+    {% if block.settings.background_size == 'custom' %}
+      background-size: {{ block.settings.background_size_custom }}%;
+    {% else %}
+      background-size: {{ block.settings.background_size }};
+    {% endif %}
+    background-position: {{ block.settings.background_position_x }}px {{ block.settings.background_position_y }}px;
+    {% if block.settings.background_repeat %}
+      background-repeat: repeat;
+    {% else %}
+      background-repeat: no-repeat;
+    {% endif %}
+  "
+  {% endif %}>
+  <div class="loyalty-spa-container">
+
+    <div class="loyalty-navbar">
+      <div class="loyalty-navbar-title">
+        {% if customer %}
+          <p>{{ customer.first_name | default: 'Membre' }}!</p>
+        {% else %}
+          <p>Invité</p>
+        {% endif %}
+      </div>
+      <div class="loyalty-navbar-points">
+        <p id="loyalty-navbar-points">...</p>
+        <p>points</p>
+      </div>
+      <div class="loyalty-navbar-buttons">
+        <button class="fidelity-nav-btn" data-page="my-program-content">
+          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_program' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="earn-points-content">
+          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.earn_points' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="change_points-content">
+          <img
+            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            alt=""
+            class="fidelity-nav-icon"
+            width="32"
+            height="32"
+          >
+          {{ 'loyalty_widget.navbar.change_points' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="my-rewards-content" id="my-rewards-nav-btn" style="display: none;">
+          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+        </button>
+      </div>
+    </div>
+
+    {% comment %} Mobile burger menu {% endcomment %}
+    <div class="loyalty-navbar-mobile">
+      <div class="fidelity-mobile-header">
+        <button class="fidelity-burger-btn" id="burger-toggle" aria-label="Toggle menu">
+          <span class="fidelity-burger-line"></span>
+          <span class="fidelity-burger-line"></span>
+          <span class="fidelity-burger-line"></span>
+        </button>
+        <div class="loyalty-navbar-title">
+          <p>Name person</p>
+          <p>Points: 100</p>
+        </div>
+      </div>
+      <div class="fidelity-mobile-menu" id="mobile-menu">
+        <button class="fidelity-nav-btn" data-page="my-program-content">
+          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_program' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="earn-points-content">
+          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.earn_points' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="change_points-content">
+          <img
+            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            alt=""
+            class="fidelity-nav-icon"
+            width="32"
+            height="32"
+          >
+          {{ 'loyalty_widget.navbar.change_points' | t }}
+        </button>
+        <button class="fidelity-nav-btn" data-page="my-rewards-content" id="my-rewards-mobile-btn" style="display: none;">
+          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+        </button>
+      </div>
+    </div>
+
+    <div id="loyalty-page-content">
+      <div data="div-content" class="loyalty-page" id="my-program-content" style="display: block;">
+        {% render 'my-program-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="earn-points-content" style="display: none;">
+        {% render 'earn-points-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="change_points-content" style="display: none;">
+        {% render 'change-points-content' %}
+      </div>
+      <div data="div-content" class="loyalty-page" id="my-rewards-content" style="display: none;">
+        {% render 'my-rewards-content' %}
+      </div>
+    </div>
+  </div>
+</div>
+
+  
+<script>
+  // Data of user available for make requests to API in all tabs
+  window.loyaltyConfig = {
+    customerId: '{{ customer.id }}',
+    customerEmail: '{{ customer.email }}',
+    shop: '{{ shop.permanent_domain }}',
+  };
+
+  // Fetch points balance
+  (function() {
+    const pointsElement = document.getElementById('loyalty-navbar-points');
+    if (window.loyaltyConfig.customerId) {
+        fetch('/apps/loyalty/customer', {
+            headers: {
+                'ngrok-skip-browser-warning': 'true'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.customer) {
+                pointsElement.textContent = data.customer.currentBalance || 0;
+            } else {
+                pointsElement.textContent = 0;
+            }
+        })
+        .catch(err => {
+            console.error('Error fetching points:', err);
+            pointsElement.textContent = 0;
+        });
+    } else {
+        pointsElement.textContent = 0;
+    }
+  })();
+</script>
+
+<script src="{{ 'loader-my-rewards.js' | asset_url }}" defer></script>
+<script src="{{ 'loader-change-points.js' | asset_url }}" defer></script>
+<script src="{{ 'loyalty-app.js' | asset_url }}" defer></script>
+<script src="{{ 'loader-earn-points.js' | asset_url }}" defer></script>
+<script src="{{ 'loader-my-program.js' | asset_url }}" defer></script>
+
+<link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
+
+{% schema %}
+{
+  "name": "Loyalty Widget",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Background Image"
+    },
+    {
+      "type": "image_picker",
+      "id": "background_image",
+      "label": "Image"
+    },
+    {
+      "type": "select",
+      "id": "background_size",
+      "label": "Background Size",
+      "options": [
+        {
+          "value": "cover",
+          "label": "Cover (recommended)"
+        },
+        {
+          "value": "contain",
+          "label": "Contain"
+        },
+        {
+          "value": "auto",
+          "label": "Auto"
+        },
+        {
+          "value": "custom",
+          "label": "Custom"
+        }
+      ],
+      "default": "cover"
+    },
+    {
+      "type": "range",
+      "id": "background_size_custom",
+      "min": 10,
+      "max": 200,
+      "step": 5,
+      "unit": "%",
+      "label": "Custom Size",
+      "default": 100,
+      "info": "Only applies when 'Custom' is selected"
+    },
+    {
+      "type": "range",
+      "id": "background_position_x",
+      "min": -500,
+      "max": 500,
+      "step": 10,
+      "unit": "px",
+      "label": "Position X (horizontal)",
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "background_position_y",
+      "min": -500,
+      "max": 500,
+      "step": 10,
+      "unit": "px",
+      "label": "Position Y (vertical)",
+      "default": 0
+    },
+    {
+      "type": "checkbox",
+      "id": "background_repeat",
+      "label": "Repeat Background",
+      "default": false
+    }
+  ]
+}
+{% endschema %}

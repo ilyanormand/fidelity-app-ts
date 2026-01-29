@@ -5,14 +5,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
+// Shopify Session model (required for Shopify app)
 model Session {
   id            String    @id
   shop          String
@@ -29,4 +27,81 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
+}
+
+// Customer model - stores loyalty program customer data
+model Customer {
+  id                  String       @id @default(uuid()) @db.Uuid
+  shopifyCustomerId   String       @map("shopify_customer_id") @db.VarChar(255)
+  shopId              String       @map("shop_id") @db.VarChar(255)
+  currentBalance      Int?         @default(0) @map("current_balance")
+  customerTags        String[]     @map("customer_tags") @db.Text
+  firstName           String?      @map("first_name") @db.VarChar(255)
+  lastName            String?      @map("last_name") @db.VarChar(255)
+  email               String?      @map("email") @db.VarChar(255)
+  displayName         String?      @map("display_name") @db.VarChar(255)
+  updatedAt           DateTime?    @updatedAt @map("updated_at")
+
+  // Relations
+  ledgerEntries       Ledger[]
+  redemptions         Redemption[]
+
+  @@unique([shopifyCustomerId, shopId])
+  @@map("customers")
+}
+
+// Ledger model - tracks all points transactions
+model Ledger {
+  id              String    @id @default(uuid()) @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  amount          Int
+  reason          String    @db.VarChar(255)
+  externalId      String?   @map("external_id") @db.VarChar(255)
+  metadata        Json?     @db.JsonB
+  createdAt       DateTime? @default(now()) @map("created_at")
+  shopifyOrderId  BigInt?   @map("ShopifyOrderId")
+
+  // Relations
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([externalId, reason])
+  @@map("ledger")
+}
+
+// Reward model - reward templates created by shop admin
+model Reward {
+  id                  String       @id @default(uuid()) @db.Uuid
+  shopId              String       @map("shop_id") @db.VarChar(255)
+  name                String       @db.VarChar(255)              // e.g., "$10 Off", "Free Shipping"
+  description         String?      @db.Text                      // optional description for customers
+  imageUrl            String?      @map("image_url") @db.VarChar(512) // reward image URL
+  pointsCost          Int          @map("points_cost")           // points required to redeem
+  discountType        String       @map("discount_type") @db.VarChar(50) // "percentage", "fixed_amount", "free_shipping"
+  discountValue       Int          @map("discount_value")        // 10 = 10% or 1000 = $10.00 (in cents)
+  minimumCartValue    Int?         @map("minimum_cart_value")    // minimum cart in cents (e.g., 5000 = $50.00), null = no minimum
+  isActive            Boolean      @default(true) @map("is_active")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  redemptions         Redemption[]
+
+  @@map("rewards")
+}
+
+// Redemption model - tracks reward redemptions
+model Redemption {
+  id                  String    @id @default(uuid()) @db.Uuid
+  customerId          String?   @map("customer_id") @db.Uuid
+  rewardId            String?   @map("reward_id") @db.Uuid       // link to reward (null if reward deleted)
+  rewardName          String?   @map("reward_name") @db.VarChar(255)  // backup name if reward deleted
+  shopifyDiscountCode String?   @map("shopify_discount_code") @db.VarChar(255)
+  pointsSpent         Int       @map("points_spent")
+  createdAt           DateTime? @default(now()) @map("created_at")
+
+  // Relations
+  customer            Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  reward              Reward?   @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+
+  @@map("redemptions")
 }

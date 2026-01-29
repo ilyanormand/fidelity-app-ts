@@ -1,0 +1,15 @@
+.operationsTable {
+  :global {
+    .Polaris-DataTable__Table thead {
+      background-color: #f6f6f7;
+    }
+
+    .Polaris-DataTable__Cell--header {
+      background-color: #f6f6f7;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+  }
+}
+
