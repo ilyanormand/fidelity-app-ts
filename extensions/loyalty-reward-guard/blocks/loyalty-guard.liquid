@@ -1,0 +1,531 @@
+{% schema %}
+{
+  "name": "Loyalty Reward Guard",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}
+
+{% assign notification_message = 'notification' | t %}
+{%- comment -%} Load selectors from JSON file {%- endcomment -%}
+{%- assign selector_file = 'selector.json' | asset_url -%}
+
+<script>
+  (function () {
+    const NOTIFICATION_MESSAGE = {{ notification_message | json }};
+    const REWARD_ITEMS_CACHE_KEY = 'loyalty_guard_reward_items';
+    const SELECTORS_CACHE_KEY = 'loyalty_guard_selectors';
+    const SELECTORS_URL = '{{ selector_file }}';
+    
+    let selectorsConfig = null;
+
+    async function loadSelectors() {
+      if (selectorsConfig) return selectorsConfig;
+      
+      try {
+        const cached = localStorage.getItem(SELECTORS_CACHE_KEY);
+        if (cached) {
+          selectorsConfig = JSON.parse(cached);
+          return selectorsConfig;
+        }
+      } catch (e) {}
+
+      try {
+        const response = await fetch(SELECTORS_URL);
+        if (response.ok) {
+          selectorsConfig = await response.json();
+          localStorage.setItem(SELECTORS_CACHE_KEY, JSON.stringify(selectorsConfig));
+          return selectorsConfig;
+        }
+      } catch (e) {
+        console.warn('[Loyalty Guard] Failed to load selectors from JSON:', e);
+      }
+
+      return null;
+    }
+
+    function findElementBySelectors(container, selectorsArray) {
+      if (!selectorsArray || !Array.isArray(selectorsArray)) return null;
+      for (const selector of selectorsArray) {
+        try {
+          const element = container.querySelector(selector);
+          if (element) return element;
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    function findElementsBySelectors(container, selectorsArray) {
+      if (!selectorsArray || !Array.isArray(selectorsArray)) return [];
+      const allElements = [];
+      for (const selector of selectorsArray) {
+        try {
+          const elements = container.querySelectorAll(selector);
+          if (elements.length > 0) {
+            allElements.push(...Array.from(elements));
+          }
+        } catch (e) {}
+      }
+      return allElements;
+    }
+
+    function getVariantId(element, selectorsConfig) {
+      if (!element || !selectorsConfig) return null;
+      
+      const variantIdAttrs = selectorsConfig?.variantIdAttribute || ["data-variant-id"];
+      
+      for (const attr of variantIdAttrs) {
+        let variantId = element.getAttribute(attr);
+        if (!variantId) variantId = element.getAttribute(`data-${attr}`);
+        if (variantId) return variantId;
+      }
+      
+      return element.getAttribute("data-variant-id");
+    }
+
+    function getVariantIdFromParent(button, selectorsConfig) {
+      let current = button.parentElement;
+      const maxDepth = 10;
+      let depth = 0;
+      
+      while (current && depth < maxDepth) {
+        const variantId = getVariantId(current, selectorsConfig);
+        if (variantId) return variantId;
+        current = current.parentElement;
+        depth++;
+      }
+      
+      return null;
+    }
+
+    function getRewardItemsCache() {
+      try {
+        const cached = localStorage.getItem(REWARD_ITEMS_CACHE_KEY);
+        return cached ? JSON.parse(cached) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function setRewardItemsCache(variantIds) {
+      try {
+        localStorage.setItem(REWARD_ITEMS_CACHE_KEY, JSON.stringify(variantIds));
+      } catch (e) {}
+    }
+
+    async function getCart() {
+      try {
+        return await fetch("/cart.js").then(r => r.json());
+      } catch (e) {
+        return { items: [] };
+      }
+    }
+
+    async function initializeRewardItemsCache() {
+      const cart = await getCart();
+      const rewardVariantIds = [];
+
+      if (cart.attributes && cart.attributes._loyalty_free_items) {
+        try {
+          const freeItems = JSON.parse(cart.attributes._loyalty_free_items);
+          if (Array.isArray(freeItems)) {
+            freeItems.forEach(gid => {
+              const variantId = gid.split('/').pop();
+              if (variantId) rewardVariantIds.push(String(variantId));
+            });
+          } else if (typeof freeItems === 'object' && freeItems !== null) {
+            Object.keys(freeItems).forEach(gid => {
+              const variantId = gid.split('/').pop();
+              if (variantId) rewardVariantIds.push(String(variantId));
+            });
+          }
+        } catch (e) {}
+      }
+
+      for (const item of cart.items || []) {
+        if (!item.product || !item.product.tags) continue;
+
+        const tags = item.product.tags;
+        const hasRewardTag = Array.isArray(tags)
+          ? tags.includes("reward_item")
+          : (typeof tags === "string" && tags.includes("reward_item"));
+
+        if (hasRewardTag && !rewardVariantIds.includes(String(item.variant_id))) {
+          rewardVariantIds.push(String(item.variant_id));
+        }
+      }
+
+      if (rewardVariantIds.length > 0) {
+        setRewardItemsCache(rewardVariantIds);
+      }
+    }
+
+    initializeRewardItemsCache();
+
+    document.addEventListener('cart:updated', function() {
+      initializeRewardItemsCache();
+      lockRewardQtyUI();
+    });
+
+    async function hasRewardTag(item) {
+      if (!item) return false;
+
+      const cachedRewardItems = getRewardItemsCache();
+      if (cachedRewardItems.includes(String(item.variant_id))) {
+        return true;
+      }
+
+      const cart = await getCart();
+
+      if (cart.attributes && cart.attributes._loyalty_free_items) {
+        try {
+          const freeItems = JSON.parse(cart.attributes._loyalty_free_items);
+          const variantGid = `gid://shopify/ProductVariant/${item.variant_id}`;
+
+          let isFreeItem = false;
+          if (Array.isArray(freeItems)) {
+            isFreeItem = freeItems.includes(variantGid);
+          } else if (typeof freeItems === 'object' && freeItems !== null) {
+            isFreeItem = freeItems[variantGid] !== undefined && freeItems[variantGid] > 0;
+          }
+
+          if (isFreeItem) {
+            if (!cachedRewardItems.includes(String(item.variant_id))) {
+              cachedRewardItems.push(String(item.variant_id));
+              setRewardItemsCache(cachedRewardItems);
+            }
+            return true;
+          }
+        } catch (e) {}
+      }
+
+      let tagsToCheck = null;
+
+      if (item.product && item.product.tags) {
+        tagsToCheck = item.product.tags;
+      } else {
+        try {
+          const productHandle =
+            item.handle ||
+            (item.url && item.url.split('/products/')[1]?.split('?')[0]);
+
+          if (productHandle) {
+            const productRes = await fetch(`/products/${productHandle}.js`);
+            if (productRes.ok) {
+              const productData = await productRes.json();
+              tagsToCheck = productData.tags;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (tagsToCheck) {
+        let hasTag = false;
+
+        if (Array.isArray(tagsToCheck)) {
+          hasTag = tagsToCheck.includes("reward_item");
+        } else if (typeof tagsToCheck === "string") {
+          hasTag = tagsToCheck.includes("reward_item");
+        }
+
+        if (hasTag) {
+          const cachedRewardItems2 = getRewardItemsCache();
+          if (!cachedRewardItems2.includes(String(item.variant_id))) {
+            cachedRewardItems2.push(String(item.variant_id));
+            setRewardItemsCache(cachedRewardItems2);
+          }
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    async function checkRewardItem(keyOrLine, quantity) {
+      const cart = await getCart();
+      let item = null;
+
+      if (typeof keyOrLine === "string" && keyOrLine.startsWith("gid://")) {
+        const variantId = parseInt(keyOrLine.split("/").pop(), 10);
+        item = cart.items.find(i => i.variant_id === variantId);
+      } else if (typeof keyOrLine === "string") {
+        item = cart.items.find(i => i.key === keyOrLine);
+      } else if (typeof keyOrLine === "number") {
+        item = cart.items[keyOrLine - 1];
+      }
+
+      if (!item) return null;
+
+      const isReward = await hasRewardTag(item);
+
+      return {
+        item,
+        key: item.key,
+        currentQty: item.quantity,
+        requestedQty: Number(quantity),
+        isReward
+      };
+    }
+
+    function shouldBlock(check) {
+      if (!check || !check.isReward) return false;
+
+      const { requestedQty, currentQty } = check;
+
+      if (requestedQty === 0) return false;
+      if (requestedQty < currentQty) return false;
+      if (requestedQty === currentQty) return false;
+
+      if (requestedQty > currentQty) return true;
+
+      return false;
+    }
+
+    async function lockRewardQtyUI() {
+      const rewardVariantIds = getRewardItemsCache();
+      if (!rewardVariantIds.length) return;
+
+      const config = await loadSelectors();
+      if (!config) return;
+
+      const buttonPlusSelectors = config?.buttonPlus;
+      if (!buttonPlusSelectors) return;
+      
+      const allButtons = findElementsBySelectors(document, buttonPlusSelectors);
+
+      allButtons.forEach(plusButton => {
+        if (plusButton.dataset.loyaltyGuardLocked === "true") return;
+
+        const variantId = getVariantIdFromParent(plusButton, config);
+        if (!variantId || !rewardVariantIds.includes(String(variantId))) return;
+
+        plusButton.dataset.loyaltyGuardLocked = "true";
+        plusButton.disabled = true;
+        plusButton.style.opacity = "0.5";
+        plusButton.style.cursor = "not-allowed";
+        
+        plusButton.addEventListener("click", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          alert(NOTIFICATION_MESSAGE);
+          return false;
+        }, true);
+      });
+    }
+
+    function runLockUI() {
+      lockRewardQtyUI();
+      requestAnimationFrame(lockRewardQtyUI);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", runLockUI);
+    } else {
+      runLockUI();
+    }
+
+    let timeoutId;
+    const observer = new MutationObserver(() => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(lockRewardQtyUI, 10);
+    });
+    observer.observe(document.documentElement || document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true
+    });
+
+    document.addEventListener("click", async function(e) {
+      const target = e.target;
+      
+      const config = await loadSelectors();
+      if (!config) return;
+      const buttonPlusSelectors = config.buttonPlus;
+      if (!buttonPlusSelectors) return;
+      
+      let plusButton = null;
+      for (const selector of buttonPlusSelectors) {
+        try {
+          plusButton = target.closest(selector);
+          if (plusButton) break;
+        } catch (e) {}
+      }
+      
+      if (!plusButton) return;
+      
+      const variantId = getVariantIdFromParent(plusButton, config);
+      if (!variantId) return;
+      
+      const rewardVariantIds = getRewardItemsCache();
+      if (rewardVariantIds.includes(String(variantId))) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        alert(NOTIFICATION_MESSAGE);
+        lockRewardQtyUI();
+        return false;
+      }
+    }, true);
+
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const [url, config] = args;
+
+      const isCartChange = url.includes("/cart/change") || url.includes("/cart/change.js");
+      const isCartUpdate = url.includes("/cart/update") || url.includes("/cart/update.js");
+
+      if (!isCartChange && !isCartUpdate) {
+        return originalFetch(...args);
+      }
+
+      let parsed = {};
+      const body = config?.body || "";
+      let isJsonBody = false;
+
+      try {
+        parsed = JSON.parse(body);
+        isJsonBody = true;
+      } catch (e) {
+        const p = new URLSearchParams(body);
+        parsed = Object.fromEntries(p.entries());
+        isJsonBody = false;
+      }
+
+      if (isCartChange) {
+        const line = parsed.line;
+        const key = parsed.key || parsed.id;
+        const quantity = parsed.quantity;
+
+        if (quantity !== undefined) {
+          const identifier = key || (line ? Number(line) : null);
+          const check = await checkRewardItem(identifier, quantity);
+
+          if (shouldBlock(check)) {
+            alert(NOTIFICATION_MESSAGE);
+
+            const modifiedParsed = {
+              ...parsed,
+              quantity: check.currentQty
+            };
+
+            const newBody = isJsonBody
+              ? JSON.stringify(modifiedParsed)
+              : new URLSearchParams(modifiedParsed).toString();
+
+            const newConfig = { ...config, body: newBody };
+
+            return originalFetch(url, newConfig);
+          }
+        }
+      }
+
+      if (isCartUpdate && parsed.updates) {
+        for (const [itemKey, quantity] of Object.entries(parsed.updates)) {
+          const check = await checkRewardItem(itemKey, quantity);
+
+          if (shouldBlock(check)) {
+            alert(NOTIFICATION_MESSAGE);
+
+            const modifiedUpdates = { ...parsed.updates };
+            modifiedUpdates[check.key] = check.currentQty;
+
+            const modifiedParsed = { ...parsed, updates: modifiedUpdates };
+            const newBody = isJsonBody
+              ? JSON.stringify(modifiedParsed)
+              : new URLSearchParams(modifiedParsed).toString();
+
+            const newConfig = { ...config, body: newBody };
+
+            return originalFetch(url, newConfig);
+          }
+        }
+      }
+
+      return originalFetch(...args);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      this._url = url;
+      originalOpen.apply(this, arguments);
+    };
+
+    const originalSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = async function (body) {
+      const url = this._url || "";
+
+      const isCartChange = url.includes("/cart/change") || url.includes("/cart/change.js");
+      const isCartUpdate = url.includes("/cart/update") || url.includes("/cart/update.js");
+
+      if (!isCartChange && !isCartUpdate) {
+        return originalSend.call(this, body);
+      }
+
+      let parsed = {};
+      let isJsonBody = false;
+
+      try {
+        parsed = JSON.parse(body);
+        isJsonBody = true;
+      } catch (e) {
+        const p = new URLSearchParams(body);
+        parsed = Object.fromEntries(p.entries());
+        isJsonBody = false;
+      }
+
+      if (isCartChange) {
+        const line = parsed.line;
+        const key = parsed.key || parsed.id;
+        const quantity = parsed.quantity;
+
+        if (quantity !== undefined) {
+          const identifier = key || (line ? Number(line) : null);
+          const check = await checkRewardItem(identifier, quantity);
+
+          if (shouldBlock(check)) {
+            alert(NOTIFICATION_MESSAGE);
+
+            const modifiedParsed = {
+              ...parsed,
+              quantity: check.currentQty
+            };
+
+            const newBody = isJsonBody
+              ? JSON.stringify(modifiedParsed)
+              : new URLSearchParams(modifiedParsed).toString();
+
+            return originalSend.call(this, newBody);
+          }
+        }
+      }
+
+      if (isCartUpdate && parsed.updates) {
+        let needsModification = false;
+        const modifiedUpdates = { ...parsed.updates };
+
+        for (const [itemKey, quantity] of Object.entries(parsed.updates)) {
+          const check = await checkRewardItem(itemKey, quantity);
+
+          if (shouldBlock(check)) {
+            alert(NOTIFICATION_MESSAGE);
+            modifiedUpdates[check.key] = check.currentQty;
+            needsModification = true;
+          }
+        }
+
+        if (needsModification) {
+          const modifiedParsed = { ...parsed, updates: modifiedUpdates };
+          const newBody = isJsonBody
+            ? JSON.stringify(modifiedParsed)
+            : new URLSearchParams(modifiedParsed).toString();
+
+          return originalSend.call(this, newBody);
+        }
+      }
+
+      return originalSend.call(this, body);
+    };
+
+  })();
+</script>

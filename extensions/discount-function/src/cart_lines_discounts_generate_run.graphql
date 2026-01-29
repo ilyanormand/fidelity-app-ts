@@ -1,0 +1,35 @@
+query CartInput {
+  cart {
+    freeItemsAttr: attribute(key: "_loyalty_free_items") {
+      key
+      value
+    }
+    pointsToRedeemAttr: attribute(key: "_loyalty_points_to_redeem") {
+      key
+      value
+    }
+    cost {
+      subtotalAmount {
+        amount
+        currencyCode
+      }
+    }
+    lines {
+      id
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            metafield(namespace: "custom", key: "isCustom") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+  discount {
+    discountClasses
+  }
+}
