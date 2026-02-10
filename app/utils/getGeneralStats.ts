@@ -1,4 +1,4 @@
-import prisma from "../../db.server";
+import prisma from "../db.server";
 
 export async function getGeneralStats(shopId: string) {
   // Get customer count

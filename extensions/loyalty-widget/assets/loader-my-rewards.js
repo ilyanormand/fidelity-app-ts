@@ -17,6 +17,14 @@ async function loadMyRewardsData() {
 
     console.log("✅ Found", data.redemptions.length, "redemptions");
 
+    // Show "Mes Récompenses" nav buttons if customer has redemptions
+    if (data.redemptions.length > 0) {
+      const navBtn = document.getElementById("my-rewards-nav-btn");
+      const mobileBtn = document.getElementById("my-rewards-mobile-btn");
+      if (navBtn) navBtn.style.display = "flex";
+      if (mobileBtn) mobileBtn.style.display = "flex";
+    }
+
     // Transform API response to widget format
     const transformedRedemptions = data.redemptions.map(redemption => ({
       id: redemption.id,
@@ -174,9 +182,11 @@ function attachRewardButtonHandlers() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const myRewardsPage = document.getElementById("my-rewards-content");
-  if (myRewardsPage && myRewardsPage.style.display !== "none") {
-    loadMyRewardsData();
-  }
+
+  // Always fetch redemptions on load to determine whether to show the nav button
+  loadMyRewardsData();
+
+  // Reload data when the tab becomes visible
   if (myRewardsPage) {
     myRewardsPage.addEventListener("pageShown", () => {
       loadMyRewardsData();

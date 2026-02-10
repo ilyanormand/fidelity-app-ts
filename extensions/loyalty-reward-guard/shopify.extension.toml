@@ -1,7 +1,0 @@
-name = "loyalty-reward-guard"
-type = "theme"
-uid = "1bd20231-9607-5b43-cb33-46adb649a142ea356378"
-
-[extension]
-type = "theme_app_extension"
-name = "Loyalty reward guard"

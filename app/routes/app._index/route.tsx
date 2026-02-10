@@ -1,11 +1,11 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../../shopify.server";
-import { PointsCVD } from "../components/pointsCVD/PointsCVD";
-import { GeneralStatistics } from "../components/generalStatistics/GeneralStatistics";
-import { SystemStatus } from "../components/systemStatus/SystemStatus";
-import { LatestOperations } from "../components/latestOperations/LatestOperations";
-import { getPointsStats } from "../utils/getPointsStats.server";
+import { PointsCVD } from "../../components/pointsCVD/PointsCVD";
+import { GeneralStatistics } from "../../components/generalStatistics/GeneralStatistics";
+import { SystemStatus } from "../../components/systemStatus/SystemStatus";
+import { LatestOperations } from "../../components/latestOperations/LatestOperations";
+import { getPointsStats } from "../../utils/getPointsStats.server";
 import styles from "./styles.module.scss";
 import {
   InlineStack,
@@ -14,8 +14,8 @@ import {
   Button,
   Page,
 } from "@shopify/polaris";
-import { checkSystem } from "../utils/checkSystem";
-import { getGeneralStats } from "../utils/getGeneralStats";
+import { checkSystem } from "../../utils/checkSystem";
+import { getGeneralStats } from "../../utils/getGeneralStats";
 import { ensureLoyaltyMetafields } from "../../utils/metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

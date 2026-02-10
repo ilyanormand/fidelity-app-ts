@@ -159,9 +159,8 @@ async function redeemReward(rewardId, minimumCartValue) {
       if (data.error === "Insufficient points") {
         throw new Error(`Points insuffisants. Vous avez ${data.current} points, mais ${data.required} sont nécessaires.`);
       }
-      if (data.error === "Cart total below minimum") {
-        throw new Error(`Panier minimum requis: ${data.minimumRequired}€`);
-      }
+      // Minimum cart validation is now handled by Shopify at checkout
+      // via the discount code's minimum purchase requirement
       throw new Error(data.error || "Échec de l'échange. Veuillez réessayer.");
     }
 

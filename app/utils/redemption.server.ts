@@ -12,8 +12,6 @@ export interface RedemptionResult {
     redemption?: any;
     required?: number;
     current?: number;
-    minimumRequired?: number;
-    cartTotal?: number;
     shopifyDiscountCreated?: boolean;
 }
 
@@ -101,16 +99,10 @@ export async function processRedemption(
             };
         }
 
-        // 6. Validate Minimum Cart
-        if (reward.minimumCartValue && cartTotal < reward.minimumCartValue) {
-            return {
-                success: false,
-                error: "Cart total below minimum",
-                minimumRequired: reward.minimumCartValue / 100,
-                cartTotal: cartTotal / 100,
-                status: 400
-            };
-        }
+        // 6. Minimum cart validation is handled by Shopify via the discount code's
+        //    minimumRequirement field (set in createLoyaltyDiscount). No need to
+        //    block redemption here — the customer gets the code and Shopify enforces
+        //    the minimum at checkout.
 
         // 7. Create Discount Code in Shopify
         let discountResult: {

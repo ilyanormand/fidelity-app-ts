@@ -125,14 +125,22 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // GET /apps/loyalty/redemptions - Get customer redemptions (My Rewards)
     if (path === "redemptions" && gid) {
+      console.log(`[redemptions] Looking up customer: gid=${gid}, shop=${shop}`);
+
       const customer = await prisma.customer.findFirst({
-        where: { shopifyCustomerId: gid },
+        where: {
+          shopifyCustomerId: gid,
+          ...(shop && { shopId: shop }),
+        },
       });
+
+      console.log(`[redemptions] Customer found:`, customer ? `id=${customer.id}, balance=${customer.currentBalance}` : "NOT FOUND");
 
       if (!customer) {
         return Response.json({
           success: false,
           error: "Customer not found",
+          debug: { gid, shop },
         });
       }
 

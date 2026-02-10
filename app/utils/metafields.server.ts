@@ -75,12 +75,8 @@ export async function syncBalanceToShopify(
       customerUpdate(input: $input) {
         customer {
           id
-          metafields(first: 1, namespace: "loyalty", keys: ["points_balance"]) {
-            edges {
-              node {
-                value
-              }
-            }
+          metafield(namespace: "loyalty", key: "points_balance") {
+            value
           }
         }
         userErrors {

@@ -57,6 +57,12 @@ export default function Customer() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
+  // Sync states
+  const [syncingMetafields, setSyncingMetafields] = useState(false);
+  const [syncingDiscounts, setSyncingDiscounts] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncTone, setSyncTone] = useState<"success" | "critical">("success");
+
   const handleOpenModal = useCallback(() => {
     setModalOpen(true);
     setPointsAmount("");
@@ -121,6 +127,53 @@ export default function Customer() {
       setSubmitError("Network error. Please try again.");
     }
   }, [pointsAmount, operationType, reason, data.customer?.id, revalidator, handleCloseModal]);
+
+  const handleSyncMetafields = useCallback(async () => {
+    setSyncingMetafields(true);
+    setSyncMessage(null);
+    try {
+      const url = data.customer?.id
+        ? `/api/sync-balances?customerId=${encodeURIComponent(data.customer.id)}`
+        : "/api/sync-balances";
+      const response = await fetch(url);
+      const result = await response.json();
+      const ok = response.ok && result.synced !== false;
+      setSyncTone(ok ? "success" : "critical");
+      setSyncMessage(ok
+        ? `Metafield synced — balance: ${result.balance ?? "?"} pts`
+        : result.error || "Sync failed");
+      if (ok) revalidator.revalidate();
+    } catch {
+      setSyncTone("critical");
+      setSyncMessage("Network error during metafield sync");
+    } finally {
+      setSyncingMetafields(false);
+      setTimeout(() => setSyncMessage(null), 4000);
+    }
+  }, [data.customer?.id, revalidator]);
+
+  const handleSyncDiscounts = useCallback(async () => {
+    setSyncingDiscounts(true);
+    setSyncMessage(null);
+    try {
+      const response = await fetch("/api/sync-discounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: data.customer?.id }),
+      });
+      const result = await response.json();
+      setSyncTone(result.success ? "success" : "critical");
+      setSyncMessage(result.success
+        ? result.message
+        : result.error || "Sync failed");
+    } catch {
+      setSyncTone("critical");
+      setSyncMessage("Network error during discount sync");
+    } finally {
+      setSyncingDiscounts(false);
+      setTimeout(() => setSyncMessage(null), 6000);
+    }
+  }, [data.customer?.id]);
 
   const customerName = data.customer
     ? ` ${data.customer.secondName} ${data.customer.name.charAt(0)}.`
@@ -216,12 +269,28 @@ export default function Customer() {
         {customerName}
       </s-link>
       <BlockStack gap="400">
+        {syncMessage && (
+          <Banner tone={syncTone} onDismiss={() => setSyncMessage(null)}>
+            {syncMessage}
+          </Banner>
+        )}
         <InlineStack gap="400" align="end" blockAlign="end">
           <Text as="h3" variant="headingLg">
             {customerName}
           </Text>
           <div style={{ flex: 1 }}></div>
-          <Button variant="primary">Force sync metafields</Button>
+          <Button
+            onClick={handleSyncDiscounts}
+            loading={syncingDiscounts}
+          >
+            Sync discounts
+          </Button>
+          <Button
+            onClick={handleSyncMetafields}
+            loading={syncingMetafields}
+          >
+            Sync metafields
+          </Button>
           <Button variant="primary" onClick={handleOpenModal}>
             Add/subtract points
           </Button>

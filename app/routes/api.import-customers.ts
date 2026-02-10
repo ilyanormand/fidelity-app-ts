@@ -10,11 +10,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     try {
-        const count = await importAllCustomers(admin, session.shop);
+        const body = request.headers.get("content-type")?.includes("json")
+            ? await request.json().catch(() => ({}))
+            : {};
+        const syncMetafields = body.syncMetafields !== false; // default true
+
+        const result = await importAllCustomers(admin, session.shop, syncMetafields);
 
         return Response.json({
             success: true,
-            message: `Successfully started import. Processed ${count} customers.`
+            message: `Imported ${result.importedCount} customers, synced ${result.metafieldsSynced} metafields.`,
+            importedCount: result.importedCount,
+            metafieldsSynced: result.metafieldsSynced,
         });
     } catch (error) {
         console.error("Import customers error:", error);

@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { getPeriod } from "./getPeriod";
-import prisma from "../../db.server";
+import prisma from "../db.server";
 
 export async function getPointsStats(shopId: string, range: string = "30d") {
   const { start, end, interval } = getPeriod(range);

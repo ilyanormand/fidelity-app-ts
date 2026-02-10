@@ -172,7 +172,7 @@
   color: white;
   border: none;
   font-weight: 700;
-  width: 110px;
+  width: auto;
   height: 33px;
   font-size: 11px;
   cursor: pointer;
@@ -258,7 +258,7 @@
   .fidelity-use-reward-btn {
     border-radius: 20px;
     background-color: black;
-    width: 101px;
+    width: auto;
     height: 29px;
     color: white;
     font-family: var(--font-family-basic), sans-serif;

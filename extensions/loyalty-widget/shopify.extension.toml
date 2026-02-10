@@ -4,7 +4,13 @@ uid = "63dc22e1-27da-358d-1f2a-1e6d9b60e4b66a03a917"
 
 type = "theme_app_extension"
 icon = "shoes.svg"
+
 [[blocks]]
 type = "loyalty-widget"
 name = "Loyalty Widget"
 file = "blocks/loyalty-widget.liquid"
+
+[[blocks]]
+type = "loyalty-guard"
+name = "Loyalty Reward Guard"
+file = "blocks/loyalty-guard.liquid"

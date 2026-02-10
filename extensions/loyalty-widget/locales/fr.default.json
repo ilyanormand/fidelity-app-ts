@@ -33,5 +33,6 @@
     "other": {
       "loading_tasks": "Loading tasks..."
     }
-  }
+  },
+  "notification": "Cet article récompense ne peut être que diminué ou supprimé."
 }
