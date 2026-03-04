@@ -39,8 +39,9 @@ model Customer {
   firstName           String?      @map("first_name") @db.VarChar(255)
   lastName            String?      @map("last_name") @db.VarChar(255)
   email               String?      @map("email") @db.VarChar(255)
-  displayName         String?      @map("display_name") @db.VarChar(255)
-  updatedAt           DateTime?    @updatedAt @map("updated_at")
+  displayName             String?      @map("display_name") @db.VarChar(255)
+  emailMarketingConsent   String?      @map("email_marketing_consent") @db.VarChar(50) // "subscribed" | "not_subscribed" | "pending" | "unsubscribed"
+  updatedAt               DateTime?    @updatedAt @map("updated_at")
 
   // Relations
   ledgerEntries       Ledger[]
