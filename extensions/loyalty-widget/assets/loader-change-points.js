@@ -157,7 +157,7 @@ async function redeemReward(rewardId, minimumCartValue) {
         return; // Stop execution
       }
       if (data.error === "Insufficient points") {
-        throw new Error(`Points insuffisants. Vous avez ${data.current} points, mais ${data.required} sont nécessaires.`);
+        throw new Error(`Points insuffisants. Vous avez ${data.current} points. Accumulez ${data.required} points ou plus pour pouvoir utiliser cette récompense.`);
       }
       // Minimum cart validation is now handled by Shopify at checkout
       // via the discount code's minimum purchase requirement
@@ -334,6 +334,7 @@ function closeRewardModal() {
     modal.classList.remove("fidelity-active");
     document.body.style.overflow = "";
   }
+  window.location.href = "/";
 }
 
 window.closeRewardModal = closeRewardModal;
