@@ -15,7 +15,10 @@ import {
   Modal,
   ChoiceList,
   Banner,
+  Tooltip,
+  Icon,
 } from "@shopify/polaris";
+import { ClipboardIcon, CheckIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { getDataCustomer } from "../../utils/getDataCustomer";
@@ -31,12 +34,64 @@ interface LedgerEntry {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shopId = session.shop;
   const customerId = params.id;
   const customer = await getDataCustomer(customerId || "");
+
+  // Check which discount codes have been used in Shopify
+  const usedCodes = new Set<string>();
+  if (customer?.redemptions && customer.redemptions.length > 0) {
+    const codes = customer.redemptions
+      .map((r) => r.discountCode)
+      .filter((c): c is string => !!c);
+    const uniqueCodes = [...new Set(codes)];
+
+    if (uniqueCodes.length > 0) {
+      try {
+        const queryParts = uniqueCodes.map(
+          (code, i) => `
+          code_${i}: codeDiscountNodeByCode(code: "${code}") {
+            codeDiscount {
+              ... on DiscountCodeBasic {
+                codes(first: 1) { edges { node { asyncUsageCount } } }
+              }
+              ... on DiscountCodeFreeShipping {
+                codes(first: 1) { edges { node { asyncUsageCount } } }
+              }
+              ... on DiscountCodeBxgy {
+                codes(first: 1) { edges { node { asyncUsageCount } } }
+              }
+            }
+          }`
+        );
+
+        const response = await admin.graphql(
+          `query CheckUsage { ${queryParts.join("\n")} }`
+        );
+        const data = await response.json();
+
+        if (data.data) {
+          uniqueCodes.forEach((code, i) => {
+            const result = data.data[`code_${i}`];
+            const count =
+              result?.codeDiscount?.codes?.edges?.[0]?.node?.asyncUsageCount;
+            if (count && count > 0) usedCodes.add(code);
+          });
+        }
+      } catch (e) {
+        console.warn("Could not check discount usage:", e);
+      }
+    }
+  }
+
+  const redemptions = (customer?.redemptions || []).map((r) => ({
+    ...r,
+    used: r.discountCode ? usedCodes.has(r.discountCode) : false,
+  }));
+
   return {
-    customer,
+    customer: customer ? { ...customer, redemptions } : null,
     shopId,
   };
 };
@@ -56,6 +111,15 @@ export default function Customer() {
   const [reason, setReason] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  // Copy code state
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const handleCopyCode = useCallback((code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    });
+  }, []);
 
   // Sync states
   const [syncingMetafields, setSyncingMetafields] = useState(false);
@@ -458,6 +522,133 @@ export default function Customer() {
             </InlineStack>
           </Box>
         </Card>
+
+        {/* Redemptions Section */}
+        {(() => {
+          const active = (data.customer?.redemptions || []).filter((r) => !r.used);
+          const used = (data.customer?.redemptions || []).filter((r) => r.used);
+          const hasRedemptions = active.length > 0 || used.length > 0;
+
+          return (
+            <Card roundedAbove="sm" padding="0">
+              <Box padding="500">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h3" variant="headingLg">
+                    Récompenses
+                  </Text>
+                  <InlineStack gap="200">
+                    {active.length > 0 && (
+                      <Badge tone="success">{`${active.length} active${active.length > 1 ? "s" : ""}`}</Badge>
+                    )}
+                    {used.length > 0 && (
+                      <Badge>{`${used.length} utilisée${used.length > 1 ? "s" : ""}`}</Badge>
+                    )}
+                  </InlineStack>
+                </InlineStack>
+              </Box>
+              <Divider />
+
+              {!hasRedemptions && (
+                <Box padding="500">
+                  <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                    Cet utilisateur n'a pas encore de récompenses.
+                  </Text>
+                </Box>
+              )}
+
+              {/* Active rewards */}
+              {active.length > 0 && (
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <Text as="h4" variant="headingMd" tone="success">
+                      Actives
+                    </Text>
+                    {active.map((r) => (
+                      <Box
+                        key={r.id}
+                        background="bg-surface-success"
+                        borderRadius="200"
+                        padding="300"
+                      >
+                        <InlineStack align="space-between" blockAlign="center" gap="400">
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              {r.rewardName}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {format(new Date(r.createdAt), "MMM d, yyyy")} · {r.pointsSpent} pts dépensés
+                            </Text>
+                          </BlockStack>
+                          <InlineStack gap="200" blockAlign="center">
+                            <Box
+                              background="bg-fill"
+                              borderRadius="100"
+                              padding="150"
+                              borderColor="border"
+                              borderWidth="025"
+                            >
+                              <Text as="span" variant="bodyMd" fontWeight="bold">
+                                {r.discountCode ?? "—"}
+                              </Text>
+                            </Box>
+                            {r.discountCode && (
+                              <Tooltip content={copiedCode === r.discountCode ? "Copié !" : "Copier le code"}>
+                                <Button
+                                  size="slim"
+                                  icon={copiedCode === r.discountCode ? CheckIcon : ClipboardIcon}
+                                  onClick={() => handleCopyCode(r.discountCode!)}
+                                  accessibilityLabel="Copier le code"
+                                />
+                              </Tooltip>
+                            )}
+                          </InlineStack>
+                        </InlineStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
+                </Box>
+              )}
+
+              {active.length > 0 && used.length > 0 && <Divider />}
+
+              {/* Used rewards */}
+              {used.length > 0 && (
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <Text as="h4" variant="headingMd" tone="subdued">
+                      Utilisées
+                    </Text>
+                    {used.map((r) => (
+                      <Box
+                        key={r.id}
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                        padding="300"
+                      >
+                        <InlineStack align="space-between" blockAlign="center" gap="400">
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold" tone="subdued">
+                              {r.rewardName}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {format(new Date(r.createdAt), "MMM d, yyyy")} · {r.pointsSpent} pts dépensés
+                            </Text>
+                          </BlockStack>
+                          <InlineStack gap="200" blockAlign="center">
+                            <Badge>Utilisée</Badge>
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {r.discountCode ?? "—"}
+                            </Text>
+                          </InlineStack>
+                        </InlineStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
+                </Box>
+              )}
+            </Card>
+          );
+        })()}
       </BlockStack>
 
       {/* Add/Subtract Points Modal */}

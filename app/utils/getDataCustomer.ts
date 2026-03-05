@@ -89,6 +89,14 @@ export const getDataCustomer = async (shopifyCustomerId: string) => {
   const name = customer.displayName || (customer.firstName ? `${customer.firstName} ${customer.lastName || ""}` : "Customer");
   const secondName = customer.email || `ID-${customer.shopifyCustomerId.split("/").pop()}`;
 
+  const redemptions = customer.redemptions.map((r) => ({
+    id: r.id,
+    rewardName: r.rewardName || "Reward",
+    discountCode: r.shopifyDiscountCode,
+    pointsSpent: r.pointsSpent,
+    createdAt: r.createdAt?.toISOString() || new Date().toISOString(),
+  }));
+
   return {
     id: customer.id,
     name,
@@ -104,5 +112,6 @@ export const getDataCustomer = async (shopifyCustomerId: string) => {
     totalSpent,
     customerTags: customer.customerTags,
     ledger,
+    redemptions,
   };
 };
