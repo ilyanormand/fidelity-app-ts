@@ -97,7 +97,6 @@ function renderChangePointsRewards(rewards) {
             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3C/svg%3E'"
           >
           <h4>${reward.name}</h4>
-          <p class="reward-discount">${reward.discountAmount}</p>
           <p class="reward-points">${reward.points} points</p>
           <button 
             class="fidelity-redeem-btn" 

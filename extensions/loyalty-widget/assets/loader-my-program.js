@@ -67,28 +67,13 @@ function renderMyProgramTasks(tasks) {
   container.innerHTML = tasksHTML;
 }
 
-// Check if all first three tasks are completed and toggle rewards button visibility
-function checkTasksCompletionAndToggleRewardsButton(tasks) {
-  // Get first three tasks
-  const firstThreeTasks = tasks.slice(0, 3);
-  
-  // Check if all three tasks are completed
-  const allCompleted = firstThreeTasks.length === 3 && 
-                       firstThreeTasks.every(task => task.isCompleted === true);
-  
-  // Find all buttons with data-page="my-rewards-content"
-  const rewardsButtons = document.querySelectorAll('button[data-page="my-rewards-content"]');
-  
-  rewardsButtons.forEach(button => {
-    if (allCompleted) {
-      button.style.display = '';
-    } else {
-      button.style.display = 'none';
-    }
-  });
+// "Mes Récompenses" button visibility is controlled exclusively by loader-my-rewards.js
+// based on whether the customer has actual redemptions. This function is kept as a no-op
+// to avoid breaking any external callers.
+function checkTasksCompletionAndToggleRewardsButton(_tasks) {
+  // Intentionally empty — do not touch the "Mes Récompenses" button here.
 }
 
-// Make function globally available
 window.checkTasksCompletionAndToggleRewardsButton = checkTasksCompletionAndToggleRewardsButton;
 
 document.addEventListener("DOMContentLoaded", () => {

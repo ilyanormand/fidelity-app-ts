@@ -12,11 +12,22 @@ p {
   margin: 0;
 }
 
-/* Page width container styles for loyalty widget */
+/* Strip padding/margin from any ancestor containers that restrict width */
+section:has(#loyalty-spa-root),
+.shopify-section:has(#loyalty-spa-root) {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Break the loyalty widget out of the theme's page-width container */
 .page-width:has(#loyalty-spa-root),
 .page-width.scroll-trigger:has(#loyalty-spa-root),
 .page-width.animate--slide-in:has(#loyalty-spa-root),
 div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -61,6 +72,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
 }
 
 #loyalty-spa-root {
+  width: 100%;
   display: flex;
   justify-content: center;
   gap: 10px;

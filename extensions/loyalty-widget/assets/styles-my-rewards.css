@@ -4,6 +4,7 @@
 }
 
 .my-rewards-title {
+  margin: 0;
   font-family: var(--font-family-basic), sans-serif;
   font-weight: 700;
   font-style: Bold;

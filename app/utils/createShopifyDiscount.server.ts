@@ -27,7 +27,7 @@ export async function createLoyaltyDiscount(
   codeOverride?: string
 ): Promise<DiscountResult> {
   // Use override code or generate a unique one
-  const code = codeOverride || `LOYAL${customerId.slice(-4)}_${Date.now().toString(36).toUpperCase()}`;
+  const code = codeOverride || `FID${customerId.slice(-4)}_${Date.now().toString(36).toUpperCase()}`;
 
   // Calculate dates
   const startsAt = new Date().toISOString();

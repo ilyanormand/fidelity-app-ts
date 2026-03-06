@@ -17,12 +17,21 @@ async function loadMyRewardsData() {
 
     console.log("✅ Found", data.redemptions.length, "redemptions");
 
-    // Show "Mes Récompenses" nav buttons if customer has redemptions
+    // Show or hide "Mes Récompenses" nav buttons based on whether customer has redemptions.
+    // Once shown, we persist the flag so other scripts (e.g. loader-my-program.js) can
+    // avoid hiding the button again.
+    const navBtn = document.getElementById("my-rewards-nav-btn");
+    const mobileBtn = document.getElementById("my-rewards-mobile-btn");
     if (data.redemptions.length > 0) {
-      const navBtn = document.getElementById("my-rewards-nav-btn");
-      const mobileBtn = document.getElementById("my-rewards-mobile-btn");
+      window.__loyaltyHasRedemptions = true;
       if (navBtn) navBtn.style.display = "flex";
       if (mobileBtn) mobileBtn.style.display = "flex";
+    } else {
+      // Only hide if we haven't confirmed redemptions in this session
+      if (!window.__loyaltyHasRedemptions) {
+        if (navBtn) navBtn.style.display = "none";
+        if (mobileBtn) mobileBtn.style.display = "none";
+      }
     }
 
     // Transform API response to widget format
@@ -33,7 +42,7 @@ async function loadMyRewardsData() {
         redemption.reward.discountType,
         redemption.reward.discountValue
       ),
-      expiryDate: formatDate(redemption.createdAt), // Show redemption date
+      expiryDate: formatDate(redemption.expiresAt),
       imgUrl: redemption.reward.imageUrl || "https://res.cloudinary.com/dcuqusnsc/image/upload/v1763662425/14be583296749317600a05691b2b74be3d90b938_prkpsb.png",
       used: redemption.used || false,
       minimalBuy: redemption.reward.minimumCartValue
