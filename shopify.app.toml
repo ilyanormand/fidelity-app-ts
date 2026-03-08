@@ -2,7 +2,7 @@
 
 client_id = "6ca88552a33182eec3ac2453f573578c"
 name = "fidelity-app-ts"
-application_url = "https://www.fwn-tech.com/"
+application_url = "https://fwn-tech.com/"
 embedded = true
 
 [build]
@@ -46,9 +46,9 @@ scopes = "write_customers,read_customers,write_discounts,read_discounts,read_ord
 
 [auth]
 redirect_urls = [
-  "https://www.fwn-tech.com/auth/callback",
-  "https://www.fwn-tech.com/auth/shopify/callback",
-  "https://www.fwn-tech.com/api/auth/callback"
+  "https://fwn-tech.com/auth/callback",
+  "https://fwn-tech.com/auth/shopify/callback",
+  "https://fwn-tech.com/api/auth/callback"
 ]
 
 [app_proxy]
