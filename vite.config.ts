@@ -52,6 +52,9 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  resolve: {
+    dedupe: ["react", "react-dom"],
+  },
   build: {
     assetsInlineLimit: 0,
   },

@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { syncBalanceToShopify } from "../utils/metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "../utils/cache.server";
 
 /**
  * orders/cancelled webhook
@@ -104,14 +105,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             `✅ [orders/cancelled] Reversed ${pointsToDeduct} pts from customer ${order.customer.id} for cancelled order ${shopifyOrderId}. New balance: ${updatedCustomer.currentBalance}`
         );
 
-        // Sync updated balance to Shopify metafield
-        if (admin) {
-            syncBalanceToShopify(admin, shopifyCustomerId, updatedCustomer.currentBalance ?? 0)
-                .then((res) => {
-                    if (!res.success) console.warn("[orders/cancelled] Metafield sync failed:", res.error);
-                })
-                .catch((err) => console.error("[orders/cancelled] Metafield sync error:", err));
-        }
+        await enqueueSyncBalance(shopifyCustomerId, updatedCustomer.currentBalance ?? 0, shop!);
+        await invalidateBalance(shopifyCustomerId, shop!);
     } catch (error) {
         console.error(`[orders/cancelled] Error processing order ${shopifyOrderId}:`, error);
         return new Response();

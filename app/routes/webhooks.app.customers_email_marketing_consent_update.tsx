@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { syncBalanceToShopify } from "../utils/metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "../utils/cache.server";
 
 const EMAIL_SUBSCRIPTION_BONUS = 100;
 
@@ -101,14 +102,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             `✅ Awarded ${EMAIL_SUBSCRIPTION_BONUS} pts to customer ${data.customer_id} for email subscription. New balance: ${updatedCustomer.currentBalance}`
         );
 
-        // Sync new balance to Shopify metafield (fire-and-forget)
-        if (admin) {
-            syncBalanceToShopify(admin, shopifyCustomerId, updatedCustomer.currentBalance ?? 0)
-                .then((res) => {
-                    if (!res.success) console.warn("Metafield sync failed after email bonus:", res.error);
-                })
-                .catch((err) => console.error("Metafield sync error after email bonus:", err));
-        }
+        await enqueueSyncBalance(shopifyCustomerId, updatedCustomer.currentBalance ?? 0, shop!);
+        await invalidateBalance(shopifyCustomerId, shop!);
     } catch (error) {
         console.error(`Error processing email marketing consent webhook: ${error}`);
         return new Response();

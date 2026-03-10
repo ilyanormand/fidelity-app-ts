@@ -1,7 +1,8 @@
 import shopify, { sessionStorage } from "../shopify.server";
 import prisma from "../db.server";
 import { createLoyaltyDiscount } from "./createShopifyDiscount.server";
-import { syncBalanceToShopify } from "./metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "./cache.server";
 
 export interface RedemptionResult {
     success: boolean;
@@ -172,22 +173,8 @@ export async function processRedemption(
             return { redemption, updatedCustomer };
         });
 
-        // 9. Sync Metafield (Fire and forget)
-        if (admin) {
-            syncBalanceToShopify(admin, shopifyCustomerId, result.updatedCustomer.currentBalance || 0)
-                .then(res => {
-                    if (!res.success) console.warn("Metafield sync failed after redemption:", res.error);
-                })
-                .catch(err => console.error("Metafield sync error:", err));
-        } else {
-            // Try to get unauthenticated admin if we didn't have it (though step 2 should have caught this)
-            try {
-                const context = await shopify.unauthenticated.admin(shop);
-                await syncBalanceToShopify(context.admin, shopifyCustomerId, result.updatedCustomer.currentBalance || 0);
-            } catch (err) {
-                console.warn("Could not sync metafield (no admin context):", err);
-            }
-        }
+        await enqueueSyncBalance(shopifyCustomerId, result.updatedCustomer.currentBalance || 0, shop);
+        await invalidateBalance(shopifyCustomerId, shop);
 
         // 9. Return Success Response
         return {

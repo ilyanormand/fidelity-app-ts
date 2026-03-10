@@ -1,8 +1,12 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { serialize } from "../utils/serialize";
-import { syncBalanceToShopify } from "../utils/metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "../utils/cache.server";
 import { authenticate } from "../shopify.server";
+import { createLogger } from "../utils/logger.server";
+
+const log = createLogger("api:ledger");
 
 // GET /api/ledger - Get ledger entries
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -10,6 +14,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const customerId = url.searchParams.get("customerId");
   const reason = url.searchParams.get("reason");
   const limit = parseInt(url.searchParams.get("limit") || "50");
+  const done = log.request("GET", { customerId, reason, limit });
 
   try {
     const entries = await prisma.ledger.findMany({
@@ -40,16 +45,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       _count: true,
     });
 
+    done(200, `${entries.length} entries, sum=${totals._sum.amount || 0}`);
     return Response.json(serialize({
       entries,
       count: entries.length,
-      totals: {
-        sum: totals._sum.amount || 0,
-        count: totals._count,
-      },
+      totals: { sum: totals._sum.amount || 0, count: totals._count },
     }));
   } catch (error) {
-    console.error("Error fetching ledger:", error);
+    log.error("Error fetching ledger:", error);
+    done(500);
     return Response.json({ error: "Failed to fetch ledger entries" }, { status: 500 });
   }
 };
@@ -59,22 +63,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const method = request.method;
   
-  // Try to get admin context for metafield sync (optional)
-  let admin;
   try {
-    const auth = await authenticate.admin(request);
-    admin = auth.admin;
-  } catch (e) {
-    // If not admin context, continue without sync
-    console.log("No admin context for metafield sync");
+    await authenticate.admin(request);
+  } catch {
+    // Non-admin callers can still proceed
   }
 
   try {
     if (method === "POST") {
       const body = await request.json();
       const { customerId, amount, reason, externalId, metadata, shopifyOrderId, syncToShopify = false } = body;
+      const done = log.request("POST", { customerId, amount, reason, syncToShopify });
 
       if (!customerId || amount === undefined || !reason) {
+        done(400, "missing required fields");
         return Response.json(
           { error: "customerId, amount, and reason are required" },
           { status: 400 }
@@ -115,20 +117,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { entry, updatedCustomer };
       });
 
-      // Optionally sync to Shopify metafield
-      if (syncToShopify && admin && customer.shopifyCustomerId) {
-        try {
-          await syncBalanceToShopify(
-            admin,
-            customer.shopifyCustomerId,
-            result.updatedCustomer.currentBalance || 0
-          );
-        } catch (syncError) {
-          console.error("Failed to sync to Shopify (non-critical):", syncError);
-          // Continue - DB is updated, Shopify sync can be retried later
-        }
+      if (syncToShopify && customer.shopifyCustomerId && customer.shopId) {
+        await enqueueSyncBalance(
+          customer.shopifyCustomerId,
+          result.updatedCustomer.currentBalance || 0,
+          customer.shopId
+        );
+        await invalidateBalance(customer.shopifyCustomerId, customer.shopId);
       }
 
+      log.success(`${amount > 0 ? "+" : ""}${amount} pts → customer ${customerId}, new balance=${result.updatedCustomer.currentBalance}`);
+      done(201, `newBalance=${result.updatedCustomer.currentBalance}`);
       return Response.json(
         serialize({
           entry: result.entry,
@@ -143,8 +142,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (method === "DELETE") {
       const body = await request.json();
       const { id } = body;
+      const done = log.request("DELETE", { id });
 
       if (!id) {
+        done(400, "missing id");
         return Response.json({ error: "Ledger entry id is required" }, { status: 400 });
       }
 
@@ -173,12 +174,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       });
 
+      done(200, `deleted entry id=${id}`);
       return Response.json({ message: "Ledger entry deleted and balance reversed" });
     }
 
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   } catch (error) {
-    console.error("Ledger action error:", error);
+    log.error("Action error:", error);
     return Response.json({ error: "Action failed" }, { status: 500 });
   }
 };

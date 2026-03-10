@@ -3,8 +3,11 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { processRedemption } from "../utils/redemption.server";
 import { createLoyaltyDiscount } from "../utils/createShopifyDiscount.server";
-import { syncBalanceToShopify } from "../utils/metafields.server";
 import shopify from "../shopify.server";
+import { getCachedBalance, setCachedBalance } from "../utils/cache.server";
+import { createLogger } from "../utils/logger.server";
+
+const log = createLogger("proxy");
 
 const SIGNUP_BONUS_POINTS = 15;
 
@@ -23,6 +26,8 @@ async function getOrCreateCustomer(gid: string, shop: string) {
     tags?: string[];
     emailMarketingConsent?: string;
   } = {};
+
+  log.info(`Auto-creating customer gid=${gid} for shop=${shop}`);
 
   try {
     const { admin } = await shopify.unauthenticated.admin(shop);
@@ -53,7 +58,7 @@ async function getOrCreateCustomer(gid: string, shop: string) {
       };
     }
   } catch (e) {
-    console.warn("[proxy] Could not fetch Shopify profile for auto-create:", e);
+    log.warn("Could not fetch Shopify profile for auto-create:", e);
   }
 
   const displayName = shopifyProfile.firstName
@@ -109,7 +114,9 @@ async function getOrCreateCustomer(gid: string, shop: string) {
       });
     });
     customer.currentBalance = (customer.currentBalance ?? 0) + SIGNUP_BONUS_POINTS;
-    console.log(`✅ [proxy] Awarded ${SIGNUP_BONUS_POINTS} signup pts to customer ${gid}.`);
+    log.success(`Awarded ${SIGNUP_BONUS_POINTS} signup pts to customer ${gid}`);
+  } else {
+    log.info(`Customer ${gid} already has signup bonus — skipping`);
   }
 
   return customer;
@@ -136,8 +143,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const customerId = url.searchParams.get("logged_in_customer_id");
   const path = params["*"]; // Get the splat path
 
+  log.info(`GET /${path} shop=${shop} customerId=${customerId || "guest"}`);
+
   try {
-    // Normalize customerId to GID if it's numeric (DB usually stores GID)
     let gid = customerId;
     if (customerId && !customerId.startsWith("gid://")) {
       gid = `gid://shopify/Customer/${customerId}`;
@@ -145,13 +153,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // GET /apps/loyalty/customer - Get customer points balance
     if (path === "customer" && gid && shop) {
+      // Try Redis cache first
+      const cached = await getCachedBalance(gid, shop);
+      if (cached !== null) {
+        log.info(`Cache HIT for ${gid} — balance=${cached}`);
+        const customer = await prisma.customer.findFirst({
+          where: { shopifyCustomerId: gid, shopId: shop },
+          select: { id: true, customerTags: true, emailMarketingConsent: true },
+        });
+        if (customer) {
+          return Response.json({ success: true, customer: { ...customer, currentBalance: cached } });
+        }
+      }
+
+      log.info(`Cache MISS for ${gid} — querying DB`);
       let customer = await prisma.customer.findFirst({
         where: { shopifyCustomerId: gid, shopId: shop },
         select: { id: true, currentBalance: true, customerTags: true, emailMarketingConsent: true },
       });
 
       if (!customer) {
-        console.log(`[customer] Customer ${gid} not found — auto-creating.`);
+        log.warn(`Customer ${gid} not found — auto-creating`);
         const created = await getOrCreateCustomer(gid, shop);
         customer = {
           id: created.id,
@@ -161,54 +183,31 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         };
       }
 
-      // Fire-and-forget metafield sync
-      shopify.unauthenticated.admin(shop).then(async ({ admin }) => {
-        await syncBalanceToShopify(admin, gid, customer!.currentBalance || 0);
-      }).catch(err => console.error("Proxy sync error:", err));
+      // Populate cache for next request
+      await setCachedBalance(gid, shop, customer.currentBalance ?? 0);
+      log.info(`Returned customer ${gid} balance=${customer.currentBalance}`);
 
-      return Response.json({
-        success: true,
-        customer,
-      });
+      return Response.json({ success: true, customer });
     }
 
     // GET /apps/loyalty/rewards - Get available rewards for shop
     if (path === "rewards" && shop) {
       const rewards = await prisma.reward.findMany({
-        where: {
-          shopId: shop,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          imageUrl: true,
-          pointsCost: true,
-          discountType: true,
-          discountValue: true,
-          minimumCartValue: true,
-        },
+        where: { shopId: shop, isActive: true },
+        select: { id: true, name: true, description: true, imageUrl: true, pointsCost: true, discountType: true, discountValue: true, minimumCartValue: true },
         orderBy: { pointsCost: "asc" },
       });
-
-      return Response.json({
-        success: true,
-        rewards,
-      });
+      log.info(`Returned ${rewards.length} rewards for shop=${shop}`);
+      return Response.json({ success: true, rewards });
     }
 
     // GET /apps/loyalty/transactions - Get customer transaction history
     if (path === "transactions" && gid) {
-      const customer = await prisma.customer.findFirst({
-        where: { shopifyCustomerId: gid },
-      });
+      const customer = await prisma.customer.findFirst({ where: { shopifyCustomerId: gid } });
 
       if (!customer) {
-        return Response.json({
-          success: false,
-          error: "Customer not found",
-        });
+        log.warn(`Transactions: customer ${gid} not found`);
+        return Response.json({ success: false, error: "Customer not found" });
       }
 
       const transactions = await prisma.ledger.findMany({
@@ -236,20 +235,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // GET /apps/loyalty/redemptions - Get customer redemptions (My Rewards)
     if (path === "redemptions" && gid) {
-      console.log(`[redemptions] Looking up customer: gid=${gid}, shop=${shop}`);
+      log.info(`Redemptions lookup: gid=${gid} shop=${shop}`);
 
       let customer = await prisma.customer.findFirst({
-        where: {
-          shopifyCustomerId: gid,
-          ...(shop && { shopId: shop }),
-        },
+        where: { shopifyCustomerId: gid, ...(shop && { shopId: shop }) },
       });
 
-      console.log(`[redemptions] Customer found:`, customer ? `id=${customer.id}, balance=${customer.currentBalance}` : "NOT FOUND");
-
       if (!customer) {
-        console.log(`[redemptions] Auto-creating customer ${gid}.`);
+        log.warn(`Redemptions: customer ${gid} not found — auto-creating`);
         customer = await getOrCreateCustomer(gid, shop!);
+      } else {
+        log.info(`Redemptions: customer found id=${customer.id} balance=${customer.currentBalance}`);
       }
 
       const redemptions = await prisma.redemption.findMany({
@@ -393,11 +389,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       path,
     });
   } catch (error) {
-    console.error("Proxy error:", error);
-    return Response.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    log.error("Proxy loader error:", error);
+    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 
@@ -409,48 +402,37 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const customerId = url.searchParams.get("logged_in_customer_id");
   const path = params["*"];
 
-  // Get admin context for creating discounts (requires session)
-  // Note: App proxy doesn't have admin session, so we'll use a different approach
-  // For now, we'll generate codes without creating them in Shopify
-  // You'll need to create them via webhook or separate admin endpoint
+  log.info(`POST /${path} shop=${shop} customerId=${customerId || "guest"}`);
 
   try {
     // POST /apps/loyalty/redeem - Redeem points for a reward
     if (path === "redeem") {
       const body = await request.json();
       const { rewardId, cartTotal } = body;
+      log.info(`Redeem request: rewardId=${rewardId} cartTotal=${cartTotal} customer=${customerId}`);
 
       if (!rewardId) {
-        return Response.json({
-          success: false,
-          error: "rewardId is required",
-        }, { status: 400 });
+        log.warn("Redeem: missing rewardId");
+        return Response.json({ success: false, error: "rewardId is required" }, { status: 400 });
       }
 
-      // Check if customer is logged in
       if (!customerId) {
-        return Response.json({
-          success: false,
-          error: "Customer must be logged in to redeem points",
-          requiresLogin: true,
-        }, { status: 401 });
+        log.warn("Redeem: customer not logged in");
+        return Response.json({ success: false, error: "Customer must be logged in to redeem points", requiresLogin: true }, { status: 401 });
       }
 
       if (!shop) {
-        return Response.json({
-          success: false,
-          error: "Shop parameter missing",
-        }, { status: 400 });
+        log.warn("Redeem: missing shop param");
+        return Response.json({ success: false, error: "Shop parameter missing" }, { status: 400 });
       }
 
-      // Convert to GID for internal consistency
       let gid = customerId;
       if (customerId && !customerId.startsWith("gid://")) {
         gid = `gid://shopify/Customer/${customerId}`;
       }
 
-      // Call shared utility directly to avoid internal network calls and 405 errors
       const result = await processRedemption(gid, rewardId, shop, cartTotal);
+      log.success(`Redeem result: success=${result.success} code=${(result as any).discountCode || "N/A"}`);
       return Response.json(result, { status: result.status || (result.success ? 200 : 400) });
     }
 
@@ -458,6 +440,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (path === "subscribe-newsletter") {
       const body = await request.json();
       const { email } = body;
+      log.info(`Newsletter subscribe: email=${email}`);
 
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return Response.json({ success: false, error: "Valid email is required" }, { status: 400 });
@@ -554,25 +537,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             e.message?.toLowerCase().includes("email") && e.message?.toLowerCase().includes("taken")
           );
           if (!emailTaken) {
-            console.error("[subscribe-newsletter] Create errors:", createErrors);
+            log.error("subscribe-newsletter create errors:", createErrors);
             return Response.json({ success: false, error: createErrors[0]?.message }, { status: 422 });
           }
         }
       }
 
+      log.success(`Newsletter subscription processed for email=${email}`);
       return Response.json({ success: true });
     }
 
-    return Response.json({
-      success: false,
-      error: "Invalid endpoint",
-    }, { status: 404 });
+    log.warn(`Unknown proxy action path: /${path}`);
+    return Response.json({ success: false, error: "Invalid endpoint" }, { status: 404 });
   } catch (error) {
-    console.error("Proxy action error:", error);
-    return Response.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    log.error("Proxy action error:", error);
+    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 

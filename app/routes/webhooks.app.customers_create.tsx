@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { syncBalanceToShopify } from "../utils/metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "../utils/cache.server";
 
 const SIGNUP_BONUS_POINTS = 15;
 
@@ -69,14 +70,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         console.log(`✅ New customer ${customer.id} created with ${SIGNUP_BONUS_POINTS} signup bonus points.`);
 
-        // Sync bonus balance to Shopify metafield (fire-and-forget)
-        if (admin) {
-            syncBalanceToShopify(admin, shopifyCustomerId, SIGNUP_BONUS_POINTS)
-                .then((res) => {
-                    if (!res.success) console.warn("Metafield sync failed after signup bonus:", res.error);
-                })
-                .catch((err) => console.error("Metafield sync error after signup bonus:", err));
-        }
+        await enqueueSyncBalance(shopifyCustomerId, SIGNUP_BONUS_POINTS, shop!);
+        await invalidateBalance(shopifyCustomerId, shop!);
     } catch (error) {
         console.error(`Error processing customer create webhook: ${error}`);
         return new Response();
