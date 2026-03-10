@@ -24,12 +24,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         id: number;
         admin_graphql_api_id: string;
         customer: { id: number } | null;
-        subtotal_price: string;       // e.g. "29.99"  — excludes shipping & taxes
+        subtotal_price: string;
         current_subtotal_price: string;
         currency: string;
-        financial_status: string;     // "paid" | "refunded" | etc.
+        financial_status: string;
         cancelled_at: string | null;
         refunds: unknown[];
+        discount_codes: Array<{ code: string; amount: string; type: string }>;
     };
 
     // Guard: must be a paid, non-cancelled order with a customer
@@ -120,6 +121,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (error) {
         console.error(`[orders/paid] Error processing order ${shopifyOrderId}:`, error);
         return new Response();
+    }
+
+    // Track which loyalty discount codes were used in this order
+    if (order.discount_codes?.length > 0) {
+        try {
+            const customer = await prisma.customer.findUnique({
+                where: { shopifyCustomerId_shopId: { shopifyCustomerId, shopId: shop } },
+            });
+
+            if (customer) {
+                for (const dc of order.discount_codes) {
+                    const idempotencyKey = `order_${shopifyOrderId}_code_${dc.code}`;
+
+                    const alreadyTracked = await prisma.ledger.findFirst({
+                        where: { customerId: customer.id, reason: "discount_code_used", externalId: idempotencyKey },
+                    });
+
+                    if (!alreadyTracked) {
+                        const redemption = await prisma.redemption.findFirst({
+                            where: { customerId: customer.id, shopifyDiscountCode: dc.code },
+                        });
+
+                        if (redemption) {
+                            await prisma.ledger.create({
+                                data: {
+                                    customerId: customer.id,
+                                    amount: 0,
+                                    reason: "discount_code_used",
+                                    externalId: idempotencyKey,
+                                    metadata: {
+                                        discountCode: dc.code,
+                                        orderId: shopifyOrderId,
+                                        redemptionId: redemption.id,
+                                    },
+                                },
+                            });
+                            console.log(`✅ [orders/paid] Marked discount code ${dc.code} as used for customer ${customer.id}`);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`[orders/paid] Error tracking discount code usage:`, error);
+        }
     }
 
     return new Response();

@@ -267,81 +267,21 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         take: 20, // Limit to last 20 redemptions for performance
       });
 
-      // Fetch discount usage from Shopify to mark as used
-      let usageMap: Record<string, boolean> = {};
-
+      // Build usage map from our own ledger (written by orders/paid webhook instantly)
+      const usageMap: Record<string, boolean> = {};
       try {
-        const { admin } = await shopify.unauthenticated.admin(shop!);
-        const codes = redemptions
-          .map(r => r.shopifyDiscountCode)
-          .filter(c => c) as string[];
-
-        if (codes.length > 0) {
-          // Construct query with aliases to fetch all codes in one request
-          // codeDiscountNodeByCode takes a single code, so we use aliases like code_0: ... code_1: ...
-          // Deduplicate codes first
-          const uniqueCodes = [...new Set(codes)];
-
-          const queryParts = uniqueCodes.map((code, index) => `
-            code_${index}: codeDiscountNodeByCode(code: "${code}") {
-              codeDiscount {
-                ... on DiscountCodeBasic {
-                  codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-                ... on DiscountCodeBxgy {
-                   codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-                ... on DiscountCodeFreeShipping {
-                   codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          `);
-
-          const response = await admin.graphql(`
-            query GetDiscountUsage {
-              ${queryParts.join('\n')}
-            }
-          `);
-
-          const data = await response.json();
-
-          // Map results back to codes
-          if (data.data) {
-            uniqueCodes.forEach((code, index) => {
-              const alias = `code_${index}`;
-              const result = data.data[alias];
-
-              if (result?.codeDiscount?.codes?.edges?.length > 0) {
-                const usageCount = result.codeDiscount.codes.edges[0].node.asyncUsageCount;
-                if (usageCount > 0) {
-                  usageMap[code] = true;
-                }
-              }
-            });
+        const usedEntries = await prisma.ledger.findMany({
+          where: { customerId: customer.id, reason: "discount_code_used" },
+          select: { metadata: true },
+        });
+        for (const entry of usedEntries) {
+          const meta = entry.metadata as { discountCode?: string } | null;
+          if (meta?.discountCode) {
+            usageMap[meta.discountCode] = true;
           }
         }
       } catch (err) {
-        console.error("Failed to fetch discount usage:", err);
-        // Continue without usage info (defaults to false)
+        console.error("Failed to fetch discount usage from ledger:", err);
       }
 
       return Response.json({
