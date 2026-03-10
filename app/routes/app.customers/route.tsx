@@ -13,8 +13,9 @@ import {
   Divider,
   BlockStack,
   Page,
+  Banner,
 } from "@shopify/polaris";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import styles from "./styles.module.scss";
 import { getCustomers } from "../../utils/getCustomers";
 
@@ -37,6 +38,9 @@ export default function Customers() {
 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvBanner, setCsvBanner] = useState<{ tone: "success" | "critical"; message: string } | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const isLoading = navigation.state === "submitting" && navigation.formMethod === "POST";
 
@@ -47,6 +51,44 @@ export default function Customers() {
 
   const handleSync = () => {
     submit(null, { method: "post", action: "/api/import-customers" });
+  };
+
+  const handleCsvButtonClick = () => {
+    csvInputRef.current?.click();
+  };
+
+  const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCsvLoading(true);
+    setCsvBanner(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/import-customers-csv", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const errText = data.errors?.length ? ` (${data.errors.length} error(s))` : "";
+        setCsvBanner({
+          tone: "success",
+          message: `Imported ${data.imported} of ${data.total} customers. Not found: ${data.notFound}.${errText}`,
+        });
+      } else {
+        setCsvBanner({ tone: "critical", message: data.error ?? "Import failed." });
+      }
+    } catch {
+      setCsvBanner({ tone: "critical", message: "Network error during import." });
+    } finally {
+      setCsvLoading(false);
+      e.target.value = "";
+    }
   };
 
   const filtered = customers.filter((c: Customer) =>
@@ -107,6 +149,13 @@ export default function Customers() {
     >
       <Box padding="0">
         <BlockStack gap="400">
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv"
+            style={{ display: "none" }}
+            onChange={handleCsvFileChange}
+          />
           <InlineStack gap="400" align="start" blockAlign="end">
             <div style={{ flex: 1 }}>
               <Text
@@ -118,10 +167,21 @@ export default function Customers() {
                 Manage all customers in your loyalty program.
               </Text>
             </div>
+            <Button onClick={handleCsvButtonClick} loading={csvLoading}>
+              Import from CSV
+            </Button>
             <Button onClick={handleSync} loading={isLoading} variant="primary">
               Sync Customers
             </Button>
           </InlineStack>
+          {csvBanner && (
+            <Banner
+              tone={csvBanner.tone}
+              onDismiss={() => setCsvBanner(null)}
+            >
+              {csvBanner.message}
+            </Banner>
+          )}
           <Card roundedAbove="sm" padding="0">
             {/* HEADER OF TABLE */}
             <Box padding="500">
