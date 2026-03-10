@@ -256,7 +256,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
   }
 
   .shopify-block {
-    width: 321px;
+    width: 100%;
   }
 
   .loyalty-spa-container {

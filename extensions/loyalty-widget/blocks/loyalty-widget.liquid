@@ -66,8 +66,13 @@
           <span class="fidelity-burger-line"></span>
         </button>
         <div class="loyalty-navbar-title">
-          <p>Name person</p>
-          <p>Points: 100</p>
+          {% if customer %}
+            <p>{{ customer.first_name | default: 'Membre' }}</p>
+          {% else %}
+            <p>Invité</p>
+          {% endif %}
+          <p id="loyalty-navbar-points">...</p>
+          <p>points</p>
         </div>
       </div>
       <div class="fidelity-mobile-menu" id="mobile-menu">
