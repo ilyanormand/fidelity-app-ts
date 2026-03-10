@@ -260,7 +260,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
   }
 
   .loyalty-spa-container {
-    width: 100%;
+    width: 90%;
     padding: 0px;
     flex-direction: column;
     margin: 20px 0px;
