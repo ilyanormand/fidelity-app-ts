@@ -113,7 +113,7 @@
 }
 
 .task-card-earn-points.fidelity-completed::after {
-  content: "Réalisée ✅";
+  content: "R\00e9alis\00e9e \2714";
   position: absolute;
   top: 0;
   left: 0;
