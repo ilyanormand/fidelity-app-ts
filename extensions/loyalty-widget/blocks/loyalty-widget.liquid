@@ -28,7 +28,7 @@
         {% endif %}
       </div>
       <div class="loyalty-navbar-points">
-        <p id="loyalty-navbar-points">...</p>
+        <p id="loyalty-navbar-points" class="loyalty-points-display">...</p>
         <p>points</p>
       </div>
       <div class="loyalty-navbar-buttons">
@@ -71,8 +71,7 @@
           {% else %}
             <p>Invité</p>
           {% endif %}
-          <p id="loyalty-navbar-points">...</p>
-          <p>points</p>
+          <p id="loyalty-navbar-points-mobile" class="loyalty-points-display">...</p><span>points</span>
         </div>
       </div>
       <div class="fidelity-mobile-menu" id="mobile-menu">
@@ -129,7 +128,10 @@
 
   // Fetch points balance
   (function() {
-    const pointsElement = document.getElementById('loyalty-navbar-points');
+    const pointsElements = document.querySelectorAll('.loyalty-points-display');
+    function setPoints(value) {
+      pointsElements.forEach(function(el) { el.textContent = value; });
+    }
     if (window.loyaltyConfig.customerId) {
         fetch('/apps/loyalty/customer', {
             headers: {
@@ -139,17 +141,17 @@
         .then(response => response.json())
         .then(data => {
             if (data.success && data.customer) {
-                pointsElement.textContent = data.customer.currentBalance || 0;
+                setPoints(data.customer.currentBalance || 0);
             } else {
-                pointsElement.textContent = 0;
+                setPoints(0);
             }
         })
         .catch(err => {
             console.error('Error fetching points:', err);
-            pointsElement.textContent = 0;
+            setPoints(0);
         });
     } else {
-        pointsElement.textContent = 0;
+        setPoints(0);
     }
   })();
 </script>
