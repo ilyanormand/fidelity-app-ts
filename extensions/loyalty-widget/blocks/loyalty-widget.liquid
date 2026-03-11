@@ -1,3 +1,15 @@
+{% assign excluded_tag = block.settings.excluded_tag | strip | downcase %}
+{% assign customer_has_excluded_tag = false %}
+{% if excluded_tag != "" and customer %}
+  {% for tag in customer.tags %}
+    {% if tag | downcase == excluded_tag %}
+      {% assign customer_has_excluded_tag = true %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{% unless customer_has_excluded_tag %}
 <div id="loyalty-spa-root" 
   class="{% if customer %}customer-logged-in{% else %}customer-not-logged-in{% endif %}"
   data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
@@ -116,8 +128,9 @@
     </div>
   </div>
 </div>
+{% endunless %}
 
-  
+{% unless customer_has_excluded_tag %}
 <script>
   // Data of user available for make requests to API in all tabs
   window.loyaltyConfig = {
@@ -155,7 +168,6 @@
     }
   })();
 </script>
-
 <script src="{{ 'loader-my-rewards.js' | asset_url }}" defer></script>
 <script src="{{ 'loader-change-points.js' | asset_url }}" defer></script>
 <script src="{{ 'loyalty-app.js' | asset_url }}" defer></script>
@@ -163,12 +175,24 @@
 <script src="{{ 'loader-my-program.js' | asset_url }}" defer></script>
 
 <link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
+{% endunless %}
 
 {% schema %}
 {
   "name": "Loyalty Widget",
   "target": "section",
   "settings": [
+    {
+      "type": "header",
+      "content": "Access Control"
+    },
+    {
+      "type": "text",
+      "id": "excluded_tag",
+      "label": "Hide widget for customers with tag",
+      "placeholder": "e.g. wholesale",
+      "info": "Customers who have this tag will not see the loyalty widget. Leave empty to show for everyone."
+    },
     {
       "type": "header",
       "content": "Background Image"
