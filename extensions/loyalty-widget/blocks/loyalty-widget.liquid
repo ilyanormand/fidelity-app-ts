@@ -2,9 +2,9 @@
 {% assign customer_has_excluded_tag = false %}
 {% if excluded_tag != "" and customer %}
   {% for tag in customer.tags %}
-    {% if tag | downcase == excluded_tag %}
+    {% assign tag_lower = tag | downcase %}
+    {% if tag_lower == excluded_tag %}
       {% assign customer_has_excluded_tag = true %}
-      {% break %}
     {% endif %}
   {% endfor %}
 {% endif %}
