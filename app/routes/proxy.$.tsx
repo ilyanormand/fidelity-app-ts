@@ -12,6 +12,36 @@ const log = createLogger("proxy");
 const SIGNUP_BONUS_POINTS = 15;
 
 /**
+ * Decode the `sub` claim (customer GID) from a Shopify session token (JWT).
+ * Checkout UI extensions can't send Authorization headers without triggering
+ * a CORS preflight that the App Proxy rejects, so the token is passed as a
+ * query param (?token=...) or in the POST body ({ token: "..." }).
+ */
+function extractCustomerGidFromToken(token: string | null): string | null {
+  try {
+    if (!token) return null;
+    const [, payloadB64] = token.split(".");
+    if (!payloadB64) return null;
+    const json = Buffer.from(payloadB64, "base64url").toString("utf-8");
+    const payload = JSON.parse(json);
+    return payload.sub ?? null; // e.g. "gid://shopify/Customer/12345"
+  } catch {
+    return null;
+  }
+}
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+};
+
+function corsJson(data: unknown, init?: ResponseInit) {
+  return Response.json(data, {
+    ...init,
+    headers: { ...CORS_HEADERS, ...(init?.headers ?? {}) },
+  });
+}
+
+/**
  * Auto-create a customer record when it doesn't exist yet in our DB.
  * This is a fallback for the race condition where the customer just signed up
  * and the customers/create webhook hasn't fired yet.
@@ -140,7 +170,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  const customerId = url.searchParams.get("logged_in_customer_id");
+  // logged_in_customer_id is set by App Proxy for theme/storefront requests.
+  // Checkout UI extensions pass a session token via ?token= query param instead.
+  const customerId =
+    url.searchParams.get("logged_in_customer_id") ||
+    extractCustomerGidFromToken(url.searchParams.get("token"));
   const path = params["*"]; // Get the splat path
 
   log.info(`GET /${path} shop=${shop} customerId=${customerId || "guest"}`);
@@ -162,7 +196,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           select: { id: true, customerTags: true, emailMarketingConsent: true },
         });
         if (customer) {
-          return Response.json({ success: true, customer: { ...customer, currentBalance: cached } });
+          return corsJson({ success: true, customer: { ...customer, currentBalance: cached } });
         }
       }
 
@@ -187,7 +221,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       await setCachedBalance(gid, shop, customer.currentBalance ?? 0);
       log.info(`Returned customer ${gid} balance=${customer.currentBalance}`);
 
-      return Response.json({ success: true, customer });
+      return corsJson({ success: true, customer });
     }
 
     // GET /apps/loyalty/rewards - Get available rewards for shop
@@ -198,7 +232,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         orderBy: { pointsCost: "asc" },
       });
       log.info(`Returned ${rewards.length} rewards for shop=${shop}`);
-      return Response.json({ success: true, rewards });
+      return corsJson({ success: true, rewards });
     }
 
     // GET /apps/loyalty/transactions - Get customer transaction history
@@ -207,7 +241,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
       if (!customer) {
         log.warn(`Transactions: customer ${gid} not found`);
-        return Response.json({ success: false, error: "Customer not found" });
+        return corsJson({ success: false, error: "Customer not found" });
       }
 
       const transactions = await prisma.ledger.findMany({
@@ -222,7 +256,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         },
       });
 
-      return Response.json({
+      return corsJson({
         success: true,
         transactions: transactions.map((t) => ({
           id: t.id,
@@ -284,7 +318,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         console.error("Failed to fetch discount usage from ledger:", err);
       }
 
-      return Response.json({
+      return corsJson({
         success: true,
         redemptions: redemptions.map((r) => {
           const isUsed = r.shopifyDiscountCode ? !!usageMap[r.shopifyDiscountCode] : false;
@@ -323,14 +357,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       });
     }
 
-    return Response.json({
+    return corsJson({
       success: false,
       error: "Invalid endpoint",
       path,
     });
   } catch (error) {
     log.error("Proxy loader error:", error);
-    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
+    return corsJson({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 
@@ -339,31 +373,43 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  const customerId = url.searchParams.get("logged_in_customer_id");
   const path = params["*"];
+
+  // Parse body once — handles both application/json and text/plain (checkout extensions
+  // send text/plain to avoid CORS preflight)
+  let parsedBody: Record<string, any> = {};
+  try {
+    const raw = await request.text();
+    if (raw) parsedBody = JSON.parse(raw);
+  } catch { /* empty body or non-JSON */ }
+
+  // Resolve customer ID: App Proxy sets logged_in_customer_id for storefront;
+  // checkout extensions pass a session token via ?token= or body.token
+  const customerId =
+    url.searchParams.get("logged_in_customer_id") ||
+    extractCustomerGidFromToken(url.searchParams.get("token") || parsedBody.token || null);
 
   log.info(`POST /${path} shop=${shop} customerId=${customerId || "guest"}`);
 
   try {
     // POST /apps/loyalty/redeem - Redeem points for a reward
     if (path === "redeem") {
-      const body = await request.json();
-      const { rewardId, cartTotal } = body;
+      const { rewardId, cartTotal } = parsedBody;
       log.info(`Redeem request: rewardId=${rewardId} cartTotal=${cartTotal} customer=${customerId}`);
 
       if (!rewardId) {
         log.warn("Redeem: missing rewardId");
-        return Response.json({ success: false, error: "rewardId is required" }, { status: 400 });
+        return corsJson({ success: false, error: "rewardId is required" }, { status: 400 });
       }
 
       if (!customerId) {
         log.warn("Redeem: customer not logged in");
-        return Response.json({ success: false, error: "Customer must be logged in to redeem points", requiresLogin: true }, { status: 401 });
+        return corsJson({ success: false, error: "Customer must be logged in to redeem points", requiresLogin: true }, { status: 401 });
       }
 
       if (!shop) {
         log.warn("Redeem: missing shop param");
-        return Response.json({ success: false, error: "Shop parameter missing" }, { status: 400 });
+        return corsJson({ success: false, error: "Shop parameter missing" }, { status: 400 });
       }
 
       let gid = customerId;
@@ -373,21 +419,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const result = await processRedemption(gid, rewardId, shop, cartTotal);
       log.success(`Redeem result: success=${result.success} code=${(result as any).discountCode || "N/A"}`);
-      return Response.json(result, { status: result.status || (result.success ? 200 : 400) });
+      return corsJson(result, { status: result.status || (result.success ? 200 : 400) });
     }
 
     // POST /apps/loyalty/subscribe-newsletter - Subscribe email to newsletter via Admin API
     if (path === "subscribe-newsletter") {
-      const body = await request.json();
-      const { email } = body;
+      const { email } = parsedBody;
       log.info(`Newsletter subscribe: email=${email}`);
 
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return Response.json({ success: false, error: "Valid email is required" }, { status: 400 });
+        return corsJson({ success: false, error: "Valid email is required" }, { status: 400 });
       }
 
       if (!shop) {
-        return Response.json({ success: false, error: "Shop parameter missing" }, { status: 400 });
+        return corsJson({ success: false, error: "Shop parameter missing" }, { status: 400 });
       }
 
       const { admin } = await shopify.unauthenticated.admin(shop);
@@ -416,7 +461,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (existingNode) {
         const alreadySubscribed = existingNode.emailMarketingConsent?.marketingState === "SUBSCRIBED";
         if (alreadySubscribed) {
-          return Response.json({ success: true, alreadySubscribed: true });
+          return corsJson({ success: true, alreadySubscribed: true });
         }
 
         // Update existing customer's email marketing consent
@@ -445,7 +490,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const updateErrors = updateData.data?.customerEmailMarketingConsentUpdate?.userErrors ?? [];
         if (updateErrors.length > 0) {
           console.error("[subscribe-newsletter] Update errors:", updateErrors);
-          return Response.json({ success: false, error: updateErrors[0]?.message }, { status: 422 });
+          return corsJson({ success: false, error: updateErrors[0]?.message }, { status: 422 });
         }
       } else {
         // Create new customer with email marketing opted in
@@ -478,20 +523,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           );
           if (!emailTaken) {
             log.error("subscribe-newsletter create errors:", createErrors);
-            return Response.json({ success: false, error: createErrors[0]?.message }, { status: 422 });
+            return corsJson({ success: false, error: createErrors[0]?.message }, { status: 422 });
           }
         }
       }
 
       log.success(`Newsletter subscription processed for email=${email}`);
-      return Response.json({ success: true });
+      return corsJson({ success: true });
     }
 
     log.warn(`Unknown proxy action path: /${path}`);
-    return Response.json({ success: false, error: "Invalid endpoint" }, { status: 404 });
+    return corsJson({ success: false, error: "Invalid endpoint" }, { status: 404 });
   } catch (error) {
     log.error("Proxy action error:", error);
-    return Response.json({ success: false, error: "Internal server error" }, { status: 500 });
+    return corsJson({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 

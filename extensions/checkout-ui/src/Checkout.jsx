@@ -6,9 +6,10 @@ import { useState, useEffect } from "preact/hooks";
 import {
   useAppMetafields,
   useApplyCartLinesChange,
+  useApplyDiscountCodeChange,
 } from "@shopify/ui-extensions/checkout/preact";
 import { getBalanceFromMetafields, validataAllDataOfLoyalty } from "./utils";
-import ChangePointsToDiscount from "./changePointsToDiscount";
+import RewardSelect from "./RewardSelect";
 
 export default async () => {
   render(<Extension />, document.body);
@@ -22,34 +23,20 @@ function Extension() {
       </s-banner>
     );
   }
-  //Check authorization
+
   if (!shopify.buyerIdentity?.email?.value) {
     return <Login shopify={shopify} />;
   }
 
-  //Get logic to calculate discount
-  //For example
-  const POINTS_PER_EURO = 100;
-
-  // Get metafield balance
   const initialBalanceValue = getBalanceFromMetafields(useAppMetafields);
   const [balance, setBalance] = useState(initialBalanceValue);
+  const applyDiscountCodeChange = useApplyDiscountCodeChange();
 
-  // State for applied discount points
-  const [appliedDiscountPoints, setAppliedDiscountPoints] = useState(0);
+  const shopDomain = shopify.shop?.myshopifyDomain ?? "";
 
-  //Another state for errors
-  const [error, setError] = useState("");
-
-  //Count balance from attributes (including pointsToRedeem)
   useEffect(() => {
     if (initialBalanceValue !== undefined && initialBalanceValue !== null) {
-      validataAllDataOfLoyalty(
-        shopify,
-        setAppliedDiscountPoints,
-        initialBalanceValue,
-        setBalance,
-      );
+      validataAllDataOfLoyalty(shopify, () => {}, initialBalanceValue, setBalance);
     }
   }, [initialBalanceValue, shopify?.attributes?.current]);
 
@@ -70,15 +57,12 @@ function Extension() {
           <s-divider />
           {balance > 0 && (
             <s-stack gap="base">
-              <ChangePointsToDiscount
+              <RewardSelect
                 shopify={shopify}
+                shopDomain={shopDomain}
                 balance={balance}
                 setBalance={setBalance}
-                setError={setError}
-                error={error}
-                POINTS_PER_EURO={POINTS_PER_EURO}
-                setAppliedDiscountPoints={setAppliedDiscountPoints}
-                appliedDiscountPoints={appliedDiscountPoints}
+                applyDiscountCodeChange={applyDiscountCodeChange}
               />
               <s-divider />
               <ChangePointsToItem
@@ -87,71 +71,6 @@ function Extension() {
                 setBalance={setBalance}
               />
             </s-stack>
-
-            // <s-stack gap="base">
-            //   <s-text tone="auto" type="strong">
-            //     {shopify.i18n.translate("changePointsForDiscount")}
-            //   </s-text>
-            //   {textNotEnoughPoints && (
-            //     <s-banner tone="critical">
-            //       <s-text>
-            //         {shopify.i18n.translate("errors.pointsNotEnough")}
-            //       </s-text>
-            //     </s-banner>
-            //   )}
-            //   <s-number-field
-            //     label={shopify.i18n.translate("pointsToRedeem")}
-            //     min={0}
-            //     value={pointsToRedeem}
-            //     disabled={isApplying}
-            //     onInput={(event) => {
-            //       const nextValue =
-            //         (event && event["detail"] && event["detail"]["value"]) ||
-            //         (event && event["target"] && event["target"]["value"]) ||
-            //         "";
-            //       setPointsToRedeem(nextValue);
-            //     }}
-            //   ></s-number-field>
-
-            //   <s-text tone="neutral" type="small">
-            //     {shopify.i18n.translate("expectedDiscount")}:{" "}
-            //     {Math.floor(numericPoints / POINTS_PER_EURO)} € (
-            //     {POINTS_PER_EURO} {shopify.i18n.translate("points")} = 1 €)
-            //   </s-text>
-            //   {error && (
-            //     <s-banner tone="critical">
-            //       <s-text>{error}</s-text>
-            //     </s-banner>
-            //   )}
-            //   <s-grid gridTemplateColumns="170px 170px">
-            //     <s-button
-            //       variant="primary"
-            //       tone="neutral"
-            //       loading={isApplying}
-            //       disabled={hasInvalidInput || numericPoints === 0}
-            //       onClick={handleApplyPoints}
-            //     >
-            //       {shopify.i18n.translate("applyPointsButton")}
-            //     </s-button>
-            //     <s-button
-            //       variant="primary"
-            //       tone="neutral"
-            //       loading={isCancelling}
-            //       disabled={appliedDiscountPoints === 0}
-            //       onClick={handleCancelRedemption}
-            //     >
-            //       {shopify.i18n.translate("components.cancelRedemption")}
-            //     </s-button>
-            //   </s-grid>
-
-            //   <s-divider />
-            //   <ChangePointsToItem
-            //     shopify={shopify}
-            //     freeItems={freeItems}
-            //     balance={balance}
-            //     setBalance={setBalance}
-            //   />
-            // </s-stack>
           )}
         </s-stack>
       </s-box>

@@ -394,6 +394,56 @@ export async function validatePointsBalance(
   }
 }
 
+export interface CheckoutReward {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  pointsCost: number;
+  discountType: string;
+  discountValue: number;
+  minimumCartValue: number | null;
+}
+
+/**
+ * Direct app backend URL — bypasses the Shopify App Proxy entirely.
+ * Required because the App Proxy does NOT support checkout UI extension
+ * requests on password-protected stores (Shopify redirects before our
+ * server is reached). See: https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration#network-access
+ */
+const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+
+export async function fetchRewards(shopDomain: string, sessionToken?: string): Promise<CheckoutReward[]> {
+  try {
+    let url = `${APP_BACKEND_URL}/api/checkout?path=rewards`;
+    if (sessionToken) url += `&token=${encodeURIComponent(sessionToken)}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.rewards) ? data.rewards : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function redeemRewardAtCheckout(
+  shopDomain: string,
+  rewardId: string,
+  sessionToken: string,
+): Promise<{ success: boolean; discountCode?: string; newBalance?: number; error?: string }> {
+  try {
+    const res = await fetch(`${APP_BACKEND_URL}/api/checkout?path=redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ rewardId, token: sessionToken }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+}
+
 export async function validataAllDataOfLoyalty(
   shopify,
   setAppliedDiscountPoints,

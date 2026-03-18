@@ -25,7 +25,7 @@ declare module './src/utils.ts' {
 }
 
 //@ts-ignore
-declare module './src/changePointsToDiscount.tsx' {
+declare module './src/RewardSelect.tsx' {
   const shopify: import('@shopify/ui-extensions/purchase.checkout.cart-line-list.render-after').Api;
   const globalThis: { shopify: typeof shopify };
 }
