@@ -24,6 +24,10 @@
   "cancelReward": "Annuler la récompense",
   "rewardApplied": "Récompense appliquée",
   "loadingRewards": "Chargement des récompenses...",
+  "earnPoints": {
+    "title": "Validez cette commande pour gagner jusqu'à {{points}} points",
+    "description": "Les points de fidélité vous permettent d'obtenir des récompenses pour vos futurs achats. Le nombre final de points accordés peut différer si des remises supplémentaires sont appliquées."
+  },
   "errors": {
     "joinAccount": "Vous devez vous connecter pour utiliser les points",
     "errorPointsQuantity": "Erreur de quantité de points",

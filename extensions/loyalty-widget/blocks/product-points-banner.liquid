@@ -1,0 +1,181 @@
+{% assign product_points = product.price | divided_by: 100 | floor %}
+{% assign track_opacity = block.settings.progress_track_opacity | divided_by: 100.0 %}
+
+<div
+  class="ppb-wrapper"
+  id="product-points-banner-{{ product.id }}"
+  data-product-price="{{ product.price }}"
+  data-customer-logged-in="{% if customer %}true{% else %}false{% endif %}"
+  data-product-id="{{ product.id }}"
+  style="
+    --ppb-bg-start: {{ block.settings.background_color }};
+    --ppb-bg-end: {{ block.settings.background_color_end }};
+    --ppb-text-color: {{ block.settings.text_color }};
+    --ppb-fill-color: {{ block.settings.progress_fill_color }};
+    --ppb-track-color: {{ block.settings.progress_track_color }};
+    --ppb-track-opacity: {{ track_opacity }};
+    --ppb-btn-bg: {{ block.settings.button_bg_color }};
+    --ppb-btn-text: {{ block.settings.button_text_color }};
+  "
+>
+  <div class="ppb-banner">
+
+    
+
+    <div class="ppb-content">
+      <div class="ppb-header">
+      {% comment %} Icon: custom image or default SVG {% endcomment %}
+        <div class="ppb-icon">
+          {% if block.settings.icon_image %}
+            <img
+              src="{{ block.settings.icon_image | image_url: width: 96 }}"
+              alt=""
+              width="48"
+              height="48"
+              loading="lazy"
+            >
+          {% else %}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="48" height="48" fill="none">
+              <circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="3"/>
+              <circle cx="32" cy="32" r="22" stroke="currentColor" stroke-width="2"/>
+              <path d="M32 18 L38 28 L32 46 L26 28 Z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
+              <path d="M22 28 L42 28" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          {% endif %}
+        </div>
+        <p class="ppb-title">
+          +{{ product_points }} {{ block.settings.points_suffix }}
+        </p>
+      </div>
+      {% if customer %}
+        <div class="ppb-progress-track">
+          <div class="ppb-progress-fill" id="ppb-progress-{{ product.id }}"></div>
+        </div>
+        <p class="ppb-description" id="ppb-description-{{ product.id }}">
+          Chargement...
+        </p>
+      {% else %}
+        <div class="ppb-actions">
+          <a
+            href="/account/login?return_url={{ request.path | url_encode }}"
+            class="ppb-btn-login"
+          >
+            {{ block.settings.login_button_text }}
+          </a>
+          <a href="/account/register" class="ppb-btn-register">
+            {{ block.settings.register_link_text }}
+          </a>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<link href="{{ 'styles-product-points-banner.css' | asset_url }}" rel="stylesheet">
+<script src="{{ 'product-points-banner.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Product Points Banner",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Couleurs"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Couleur de fond (début du dégradé)",
+      "default": "#a855f7"
+    },
+    {
+      "type": "color",
+      "id": "background_color_end",
+      "label": "Couleur de fond (fin du dégradé)",
+      "default": "#8b3cf7"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Couleur du texte",
+      "default": "#ffffff"
+    },
+    {
+      "type": "header",
+      "content": "Barre de progression"
+    },
+    {
+      "type": "color",
+      "id": "progress_fill_color",
+      "label": "Couleur de remplissage",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "progress_track_color",
+      "label": "Couleur de la piste (vide)",
+      "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "progress_track_opacity",
+      "label": "Opacité de la piste",
+      "min": 5,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "default": 20
+    },
+    {
+      "type": "header",
+      "content": "Boutons (non connecté)"
+    },
+    {
+      "type": "color",
+      "id": "button_bg_color",
+      "label": "Fond du bouton",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Texte du bouton",
+      "default": "#000000"
+    },
+    {
+      "type": "header",
+      "content": "Icône"
+    },
+    {
+      "type": "image_picker",
+      "id": "icon_image",
+      "label": "Icône personnalisée (remplace l'icône par défaut)"
+    },
+    {
+      "type": "header",
+      "content": "Texte"
+    },
+    {
+      "type": "text",
+      "id": "points_suffix",
+      "label": "Texte après le nombre de points",
+      "default": "points fidélité avec cet achat",
+      "info": "Affiché après \"+X\" dans le titre"
+    },
+    {
+      "type": "text",
+      "id": "login_button_text",
+      "label": "Texte du bouton de connexion",
+      "default": "Me connecter"
+    },
+    {
+      "type": "text",
+      "id": "register_link_text",
+      "label": "Texte du lien d'inscription",
+      "default": "S'inscrire"
+    }
+  ]
+}
+{% endschema %}

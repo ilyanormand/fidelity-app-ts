@@ -95,8 +95,16 @@ export default function Rewards() {
     setImageUrl(reward.imageUrl || "");
     setPointsCost(reward.pointsCost.toString());
     setDiscountType(reward.discountType);
-    setDiscountValue(reward.discountValue.toString());
-    setMinimumCartValue(reward.minimumCartValue?.toString() || "");
+    // fixed_amount is stored in cents — display in euros
+    setDiscountValue(
+      reward.discountType === "fixed_amount"
+        ? (reward.discountValue / 100).toString()
+        : reward.discountValue.toString()
+    );
+    // minimumCartValue is stored in cents — display in euros
+    setMinimumCartValue(
+      reward.minimumCartValue ? (reward.minimumCartValue / 100).toString() : ""
+    );
     setIsActive(reward.isActive ? "true" : "false");
   }, []);
 
@@ -118,6 +126,39 @@ export default function Rewards() {
     setPopoverActive(null);
   }, []);
 
+  const handleDuplicateReward = useCallback(async (reward: any) => {
+    setPopoverActive(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/rewards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopId,
+          name: `Copy of ${reward.name}`,
+          description: reward.description,
+          imageUrl: reward.imageUrl,
+          pointsCost: reward.pointsCost,
+          discountType: reward.discountType,
+          discountValue: reward.discountValue,
+          minimumCartValue: reward.minimumCartValue,
+          isActive: false,
+        }),
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        setError(result.error || "Failed to duplicate reward");
+        return;
+      }
+      revalidator.revalidate();
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [shopId, revalidator]);
+
   const handleCreateReward = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -133,8 +174,12 @@ export default function Rewards() {
           imageUrl,
           pointsCost: parseInt(pointsCost),
           discountType,
-          discountValue: parseInt(discountValue),
-          minimumCartValue: minimumCartValue ? parseInt(minimumCartValue) : null,
+          // fixed_amount: user enters euros, store as cents
+          discountValue: discountType === "fixed_amount"
+            ? Math.round(parseFloat(discountValue) * 100)
+            : parseInt(discountValue),
+          // minimumCartValue: user enters euros, store as cents
+          minimumCartValue: minimumCartValue ? Math.round(parseFloat(minimumCartValue) * 100) : null,
           isActive: isActive === "true",
         }),
       });
@@ -177,8 +222,10 @@ export default function Rewards() {
           imageUrl,
           pointsCost: parseInt(pointsCost),
           discountType,
-          discountValue: parseInt(discountValue),
-          minimumCartValue: minimumCartValue ? parseInt(minimumCartValue) : null,
+          discountValue: discountType === "fixed_amount"
+            ? Math.round(parseFloat(discountValue) * 100)
+            : parseInt(discountValue),
+          minimumCartValue: minimumCartValue ? Math.round(parseFloat(minimumCartValue) * 100) : null,
           isActive: isActive === "true",
         }),
       });
@@ -235,19 +282,19 @@ export default function Rewards() {
   const getDiscountLabel = (discountType: string, discountValue: number) => {
     switch (discountType) {
       case "percentage":
-        return `${discountValue}% Off`;
+        return `${discountValue}% de réduction`;
       case "fixed_amount":
-        return `$${(discountValue / 100).toFixed(2)} Off`;
+        return `${(discountValue / 100).toFixed(2)}€ de réduction`;
       case "free_shipping":
-        return "Free Shipping";
+        return "Livraison gratuite";
       default:
         return discountType;
     }
   };
 
   const getMinimumCartLabel = (minimumCartValue: number | null) => {
-    if (!minimumCartValue) return "No minimum";
-    return `Min. $${(minimumCartValue / 100).toFixed(2)}`;
+    if (!minimumCartValue) return "Pas de minimum";
+    return `Min. ${(minimumCartValue / 100).toFixed(2)}€`;
   };
 
   return (
@@ -324,6 +371,10 @@ export default function Rewards() {
                                   {
                                     content: "Edit",
                                     onAction: () => handleOpenEdit(reward),
+                                  },
+                                  {
+                                    content: "Duplicate",
+                                    onAction: () => handleDuplicateReward(reward),
                                   },
                                   {
                                     content: "Delete",
@@ -440,10 +491,10 @@ export default function Rewards() {
             <TextField
               label={
                 discountType === "percentage"
-                  ? "Percentage (e.g., 10 for 10%)"
+                  ? "Pourcentage (ex. 10 pour 10%)"
                   : discountType === "fixed_amount"
-                  ? "Amount in cents (e.g., 1000 for $10.00)"
-                  : "Value (0 for free shipping)"
+                  ? "Montant en euros (ex. 10 pour 10€)"
+                  : "Valeur (0 pour la livraison gratuite)"
               }
               type="number"
               value={discountValue}
@@ -453,19 +504,19 @@ export default function Rewards() {
             />
 
             <TextField
-              label="Minimum Cart Value (cents)"
+              label="Valeur minimale du panier (€)"
               type="number"
               value={minimumCartValue}
               onChange={setMinimumCartValue}
-              placeholder="e.g., 5000 for $50.00 minimum (leave empty for no minimum)"
+              placeholder="ex. 50 pour 50€ minimum (laisser vide pour aucun minimum)"
               autoComplete="off"
             />
 
             <Select
-              label="Status"
+              label="Statut"
               options={[
-                { label: "Active", value: "true" },
-                { label: "Inactive", value: "false" },
+                { label: "Actif", value: "true" },
+                { label: "Inactif", value: "false" },
               ]}
               value={isActive}
               onChange={setIsActive}
@@ -546,10 +597,10 @@ export default function Rewards() {
             <TextField
               label={
                 discountType === "percentage"
-                  ? "Percentage (e.g., 10 for 10%)"
+                  ? "Pourcentage (ex. 10 pour 10%)"
                   : discountType === "fixed_amount"
-                  ? "Amount in cents (e.g., 1000 for $10.00)"
-                  : "Value (0 for free shipping)"
+                  ? "Montant en euros (ex. 10 pour 10€)"
+                  : "Valeur (0 pour la livraison gratuite)"
               }
               type="number"
               value={discountValue}
@@ -559,19 +610,19 @@ export default function Rewards() {
             />
 
             <TextField
-              label="Minimum Cart Value (cents)"
+              label="Valeur minimale du panier (€)"
               type="number"
               value={minimumCartValue}
               onChange={setMinimumCartValue}
-              placeholder="Leave empty for no minimum"
+              placeholder="Laisser vide pour aucun minimum"
               autoComplete="off"
             />
 
             <Select
-              label="Status"
+              label="Statut"
               options={[
-                { label: "Active", value: "true" },
-                { label: "Inactive", value: "false" },
+                { label: "Actif", value: "true" },
+                { label: "Inactif", value: "false" },
               ]}
               value={isActive}
               onChange={setIsActive}

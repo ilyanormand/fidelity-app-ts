@@ -1,0 +1,152 @@
+.ppb-wrapper {
+  margin: 16px 0;
+}
+
+.ppb-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(
+    135deg,
+    var(--ppb-bg-start, #a855f7),
+    var(--ppb-bg-end, #8b3cf7)
+  );
+  border-radius: 16px;
+  padding: 18px 20px;
+  color: var(--ppb-text-color, #ffffff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Icon */
+.ppb-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ppb-text-color, #ffffff);
+}
+
+.ppb-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+/* Content column */
+.ppb-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ppb-header {
+  display: flex;
+  gap: 10px;
+}
+
+/* Title */
+.ppb-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ppb-text-color, #ffffff);
+  line-height: 1.3;
+}
+
+/* Progress bar track */
+.ppb-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 100px;
+  overflow: hidden;
+  position: relative;
+  padding: 1px;
+}
+
+/* Track background via ::before so opacity doesn't affect the fill child */
+.ppb-progress-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--ppb-track-color, #ffffff);
+  opacity: var(--ppb-track-opacity, 0.2);
+  border-radius: 100px;
+}
+
+/* Progress bar fill */
+.ppb-progress-fill {
+  display: block !important;
+  position: relative;
+  z-index: 1;
+  width: 0%;
+  height: 100%;
+  background-color: var(--ppb-fill-color, #ffffff);
+  border-radius: 100px;
+  transition: width 0.8s ease;
+}
+
+/* Description */
+.ppb-description {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ppb-text-color, #ffffff);
+  line-height: 1.4;
+}
+
+/* Not-logged-in buttons */
+.ppb-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ppb-btn-login {
+  display: inline-block;
+  background-color: var(--ppb-btn-bg, #ffffff);
+  color: var(--ppb-btn-text, #000000);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 22px;
+  border-radius: 100px;
+  text-decoration: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.ppb-btn-login:hover {
+  opacity: 0.85;
+  color: var(--ppb-btn-text, #000000);
+}
+
+.ppb-btn-register {
+  display: inline-block;
+  color: var(--ppb-text-color, #ffffff);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.ppb-btn-register:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+@media screen and (max-width: 480px) {
+  .ppb-banner {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .ppb-title {
+    font-size: 15px;
+  }
+
+  .ppb-icon svg,
+  .ppb-icon img {
+    width: 38px;
+    height: 38px;
+  }
+}
