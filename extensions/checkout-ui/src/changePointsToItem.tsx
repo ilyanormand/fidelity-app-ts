@@ -14,7 +14,8 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
   useEffect(() => {
     async function loadRewardProducts() {
       try {
-        const data = await fetchRewardProducts(shopify);
+        const token = await shopify.sessionToken.get();
+        const data = await fetchRewardProducts(token);
         setRewards(data);
       } catch (error) {
         setRewards([]);
@@ -58,7 +59,7 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
           {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({ variantId: reward.variantId, pointsCost: reward.pointsCost, token }),
+            body: JSON.stringify({ variantId: reward.shopifyVariantId, pointsCost: reward.pointsCost, token }),
           }
         );
         const validationData = await validationRes.json();
@@ -77,9 +78,9 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
       }
 
       console.log("[changePointsToItem] Adding product to cart...");
-      const addResult = await applyCartLinesChange({
+        const addResult = await applyCartLinesChange({
         type: "addCartLine",
-        merchandiseId: reward.variantId,
+        merchandiseId: reward.shopifyVariantId,
         quantity: 1,
       });
 
@@ -107,18 +108,18 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
 
       console.log("[changePointsToItem] Current freeItemsMap:", freeItemsMap);
 
-      const existingItem = freeItemsMap[reward.variantId];
+      const existingItem = freeItemsMap[reward.shopifyVariantId];
       if (existingItem) {
-        freeItemsMap[reward.variantId] = {
+        freeItemsMap[reward.shopifyVariantId] = {
           quantity: existingItem.quantity + 1,
           spent: existingItem.spent + reward.pointsCost,
         };
         console.log(
           "[changePointsToItem] Updated existing item:",
-          freeItemsMap[reward.variantId],
+          freeItemsMap[reward.shopifyVariantId],
         );
       } else {
-        freeItemsMap[reward.variantId] = {
+        freeItemsMap[reward.shopifyVariantId] = {
           quantity: 1,
           spent: reward.pointsCost,
         };
@@ -204,7 +205,7 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
 }
 
 function RewardOffer({ reward, onRedeem, balance, isRedeeming, shopify }) {
-  const { title, pointsCost, imageUrl } = reward;
+  const { shopifyProductTitle: title, pointsCost, shopifyProductImageUrl: imageUrl } = reward;
   const isDisabled = balance < pointsCost;
 
   return (

@@ -203,57 +203,26 @@ export async function cancelPointsRedemption(shopify: any) {
 }
 
 //FUNCTION FOR FETCH REWARD PRODUCTS
-export async function fetchRewardProducts(shopify) {
-  if (!shopify || typeof shopify.query !== "function") {
+export interface RewardProduct {
+  id: string;
+  shopifyProductId: string;
+  shopifyVariantId: string;
+  shopifyProductTitle: string;
+  shopifyProductImageUrl: string | null;
+  pointsCost: number;
+}
+
+export async function fetchRewardProducts(sessionToken?: string): Promise<RewardProduct[]> {
+  try {
+    let url = `${APP_BACKEND_URL}/api/checkout?path=reward-products`;
+    if (sessionToken) url += `&token=${encodeURIComponent(sessionToken)}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.rewardProducts) ? data.rewardProducts : [];
+  } catch {
     return [];
   }
-  const query = `
-    query rewardProducts {
-      products(first: 50) {
-        nodes {
-          id
-          title
-          featuredImage { url }
-          variants(first: 1) { nodes { id } }
-          metafields(identifiers: [
-            { namespace: "loyalty", key: "points_cost" }
-          ]) {
-            value
-          }
-        }
-      }
-    }
-  `;
-
-  const response = await shopify.query(query);
-  const products = response?.data?.products?.nodes ?? [];
-  const rewards = products
-    .map((p) => {
-      const mf = Array.isArray(p.metafields) ? p.metafields[0] : null;
-
-      // metafield exists and has value
-      if (!mf || mf.value == null) return null;
-
-      // Check if variants exist and have at least one node
-      if (
-        !p.variants?.nodes ||
-        !Array.isArray(p.variants.nodes) ||
-        p.variants.nodes.length === 0 ||
-        !p.variants.nodes[0]?.id
-      ) {
-        return null;
-      }
-
-      return {
-        id: p.id,
-        title: p.title,
-        imageUrl: p.featuredImage?.url ?? null,
-        variantId: p.variants.nodes[0].id,
-        pointsCost: Number(mf.value),
-      };
-    })
-    .filter(Boolean);
-  return rewards;
 }
 
 //FUNCTION FOR VALIDATE CART WITH FREE ITEMS

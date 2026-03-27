@@ -83,6 +83,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return corsJson({ success: true, rewards });
   }
 
+  if (path === "reward-products") {
+    const { shop } = decodeSessionToken(token);
+    log.info(`GET checkout/reward-products shop=${shop}`);
+
+    if (!shop) {
+      return corsJson({ success: false, error: "Invalid session token" }, { status: 401 });
+    }
+
+    const rewardProducts = await prisma.rewardProduct.findMany({
+      where: { shopId: shop, isActive: true },
+      select: {
+        id: true,
+        shopifyProductId: true,
+        shopifyVariantId: true,
+        shopifyProductTitle: true,
+        shopifyProductImageUrl: true,
+        pointsCost: true,
+      },
+      orderBy: { pointsCost: "asc" },
+    });
+
+    log.info(`Returned ${rewardProducts.length} reward products for shop=${shop}`);
+    return corsJson({ success: true, rewardProducts });
+  }
+
   return corsJson({ success: false, error: "Invalid path" }, { status: 404 });
 };
 
