@@ -3,9 +3,12 @@ import { useApplyCartLinesChange } from "@shopify/ui-extensions/checkout/preact"
 import { useState, useEffect } from "preact/hooks";
 import { fetchRewardProducts, parseFreeItemsAttribute } from "./utils";
 
+const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+
 export default function ChangePointsToItem({ balance, setBalance, shopify }) {
   const [rewards, setRewards] = useState([]);
   const [redeemingProductId, setRedeemingProductId] = useState(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const applyCartLinesChange = useApplyCartLinesChange();
 
   useEffect(() => {
@@ -33,6 +36,7 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
     });
 
     setRedeemingProductId(reward.id);
+    setValidationError(null);
     try {
       if (balance < reward.pointsCost) {
         console.warn(
@@ -42,6 +46,34 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
           reward.pointsCost,
         );
         return;
+      }
+
+      // Server-side validation: verify customer has enough points in the DB
+      // before proceeding — prevents abuse via manually crafted cart attributes
+      console.log("[changePointsToItem] Validating points server-side...");
+      try {
+        const token = await shopify.sessionToken.get();
+        const validationRes = await fetch(
+          `${APP_BACKEND_URL}/api/checkout?path=validate-product-redemption`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ variantId: reward.variantId, pointsCost: reward.pointsCost, token }),
+          }
+        );
+        const validationData = await validationRes.json();
+        if (!validationData.success) {
+          console.warn("[changePointsToItem] Server validation failed:", validationData.error);
+          const errorMsg = validationData.error === "insufficient_points"
+            ? (shopify.i18n?.translate("notEnoughPoints") || "Points insuffisants")
+            : (shopify.i18n?.translate("errors.errorChangePoints") || "Erreur de validation");
+          setValidationError(errorMsg);
+          return;
+        }
+        console.log("[changePointsToItem] Server validation passed");
+      } catch (validationErr) {
+        // Network error — log but continue (fail open to avoid blocking legitimate redemptions)
+        console.warn("[changePointsToItem] Server validation network error (continuing):", validationErr);
       }
 
       console.log("[changePointsToItem] Adding product to cart...");
@@ -149,6 +181,12 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
     <s-scroll-box maxBlockSize="400px">
       <s-stack gap="base">
         <s-text type="strong">{shopify.i18n.translate("pointsToItem")}</s-text>
+
+        {validationError && (
+          <s-banner tone="critical">
+            <s-text>{validationError}</s-text>
+          </s-banner>
+        )}
 
         {rewards.map((reward) => (
           <RewardOffer

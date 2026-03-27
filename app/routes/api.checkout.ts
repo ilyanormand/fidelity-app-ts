@@ -87,6 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 // POST /api/checkout?path=redeem  body: { token, rewardId }
+// POST /api/checkout?path=validate-product-redemption  body: { token, variantId, pointsCost }
 export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
   const path = url.searchParams.get("path");
@@ -116,6 +117,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const result = await processRedemption(customerGid, rewardId, shop, cartTotal);
     log.success(`Redeem result: success=${result.success} code=${(result as any).discountCode || "N/A"}`);
     return corsJson(result, { status: (result as any).status || (result.success ? 200 : 400) });
+  }
+
+  if (path === "validate-product-redemption") {
+    const { token, variantId, pointsCost } = body;
+    const { shop, customerGid } = decodeSessionToken(token);
+
+    log.info(`POST checkout/validate-product-redemption variantId=${variantId} pointsCost=${pointsCost} shop=${shop} customer=${customerGid}`);
+
+    if (!customerGid) {
+      return corsJson({ success: false, error: "Customer must be logged in", requiresLogin: true }, { status: 401 });
+    }
+    if (!shop) {
+      return corsJson({ success: false, error: "Invalid session token" }, { status: 401 });
+    }
+    if (!variantId || pointsCost === undefined || pointsCost === null) {
+      return corsJson({ success: false, error: "variantId and pointsCost are required" }, { status: 400 });
+    }
+
+    const cost = Number(pointsCost);
+    if (!Number.isFinite(cost) || cost <= 0) {
+      return corsJson({ success: false, error: "pointsCost must be a positive number" }, { status: 400 });
+    }
+
+    const customer = await prisma.customer.findFirst({
+      where: { shopifyCustomerId: customerGid, shopId: shop },
+      select: { currentBalance: true },
+    });
+
+    if (!customer) {
+      return corsJson({ success: false, error: "Customer not found" }, { status: 404 });
+    }
+
+    const balance = customer.currentBalance ?? 0;
+    if (balance < cost) {
+      log.info(`validate-product-redemption: insufficient points balance=${balance} required=${cost}`);
+      return corsJson({
+        success: false,
+        error: "insufficient_points",
+        currentBalance: balance,
+        required: cost,
+      }, { status: 400 });
+    }
+
+    log.success(`validate-product-redemption: authorized variantId=${variantId} balance=${balance} cost=${cost}`);
+    return corsJson({ success: true, authorized: true, currentBalance: balance });
   }
 
   return corsJson({ success: false, error: "Invalid path" }, { status: 404 });

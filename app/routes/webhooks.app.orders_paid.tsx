@@ -31,6 +31,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         cancelled_at: string | null;
         refunds: unknown[];
         discount_codes: Array<{ code: string; amount: string; type: string }>;
+        note_attributes: Array<{ name: string; value: string }>;
     };
 
     // Guard: must be a paid, non-cancelled order with a customer
@@ -165,6 +166,110 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         } catch (error) {
             console.error(`[orders/paid] Error tracking discount code usage:`, error);
         }
+    }
+
+    // Process free product redemptions from cart attributes (_loyalty_free_items)
+    try {
+        const noteAttrs: Record<string, string> = {};
+        (order.note_attributes || []).forEach((a) => {
+            noteAttrs[a.name] = a.value;
+        });
+
+        const freeItemsRaw = noteAttrs["_loyalty_free_items"];
+        const pointsSpentRaw = noteAttrs["_loyalty_points_spent"];
+
+        if (freeItemsRaw && pointsSpentRaw) {
+            const idempotencyKey = `order_${shopifyOrderId}_free_items`;
+
+            const alreadyProcessed = await prisma.ledger.findFirst({
+                where: { externalId: idempotencyKey, reason: "free_product_redemption" },
+            });
+
+            if (!alreadyProcessed) {
+                let freeItemsMap: Record<string, { quantity: number; spent: number }> = {};
+                try {
+                    const parsed = JSON.parse(freeItemsRaw);
+                    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                        freeItemsMap = parsed;
+                    }
+                } catch {
+                    console.warn(`[orders/paid] Could not parse _loyalty_free_items for order ${shopifyOrderId}`);
+                }
+
+                const totalPointsSpent = parseInt(pointsSpentRaw, 10) || 0;
+
+                if (totalPointsSpent > 0 && Object.keys(freeItemsMap).length > 0) {
+                    const customer = await prisma.customer.findUnique({
+                        where: { shopifyCustomerId_shopId: { shopifyCustomerId, shopId: shop } },
+                    });
+
+                    if (customer) {
+                        // Cap deduction at current balance to avoid negative balance
+                        const safeDeduction = Math.min(totalPointsSpent, customer.currentBalance ?? 0);
+
+                        if (safeDeduction < totalPointsSpent) {
+                            console.warn(
+                                `[orders/paid] FRAUD ALERT: order ${shopifyOrderId} tried to spend ${totalPointsSpent} pts but customer only has ${customer.currentBalance}. Deducting ${safeDeduction}.`
+                            );
+                        }
+
+                        await prisma.$transaction(async (tx) => {
+                            // One ledger entry for the total deduction
+                            await tx.ledger.create({
+                                data: {
+                                    customerId: customer.id,
+                                    amount: -safeDeduction,
+                                    reason: "free_product_redemption",
+                                    externalId: idempotencyKey,
+                                    shopifyOrderId: BigInt(shopifyOrderId),
+                                    metadata: {
+                                        orderId: shopifyOrderId,
+                                        freeItems: freeItemsMap,
+                                        pointsSpentAttr: totalPointsSpent,
+                                    },
+                                },
+                            });
+
+                            // One Redemption record per variant redeemed
+                            for (const [variantId, itemData] of Object.entries(freeItemsMap)) {
+                                if (typeof itemData?.quantity === "number" && itemData.quantity > 0) {
+                                    await tx.redemption.create({
+                                        data: {
+                                            customerId: customer.id,
+                                            rewardName: `free_product:${variantId}:qty${itemData.quantity}`,
+                                            pointsSpent: typeof itemData.spent === "number" ? itemData.spent : 0,
+                                            shopifyDiscountCode: null,
+                                        },
+                                    });
+                                }
+                            }
+
+                            // Decrement balance
+                            await tx.customer.update({
+                                where: { id: customer.id },
+                                data: { currentBalance: { decrement: safeDeduction } },
+                            });
+                        });
+
+                        const updatedCustomer = await prisma.customer.findUnique({
+                            where: { id: customer.id },
+                            select: { currentBalance: true },
+                        });
+
+                        console.log(
+                            `✅ [orders/paid] Deducted ${safeDeduction} pts for free products on order ${shopifyOrderId}. New balance: ${updatedCustomer?.currentBalance}`
+                        );
+
+                        await enqueueSyncBalance(shopifyCustomerId, updatedCustomer?.currentBalance ?? 0, shop!);
+                        await invalidateBalance(shopifyCustomerId, shop!);
+                    }
+                }
+            } else {
+                console.log(`[orders/paid] Free product redemption already processed for order ${shopifyOrderId} — skipping.`);
+            }
+        }
+    } catch (error) {
+        console.error(`[orders/paid] Error processing free product redemptions for order ${shopifyOrderId}:`, error);
     }
 
     return new Response();
