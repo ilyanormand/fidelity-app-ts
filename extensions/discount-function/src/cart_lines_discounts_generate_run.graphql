@@ -16,6 +16,7 @@ query CartInput {
     }
     lines {
       id
+      quantity
       loyaltyFreeItem: attribute(key: "_loyalty_free_item") {
         key
         value

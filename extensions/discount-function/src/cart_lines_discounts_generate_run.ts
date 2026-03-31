@@ -78,34 +78,45 @@ export function cartLinesDiscountsGenerateRun(
       } catch (e) {}
     }
 
-    // Match free products by EITHER:
-    // 1. Cart-level attribute _loyalty_free_items (legacy / map-based)
-    // 2. Line-level attribute _loyalty_free_item === "true" (new / property-based)
-    const freeProductLines = input.cart.lines.filter((line) => {
-      if (line.merchandise.__typename !== "ProductVariant") {
-        return false;
-      }
+    const freeProductLines: Array<{
+      lineId: string;
+      freeQty: number;
+    }> = [];
 
-      // Check line-level property first (most reliable)
+    for (const line of input.cart.lines) {
+      if (line.merchandise.__typename !== "ProductVariant") continue;
+
+      let freeQty = 0;
+
+      // Line-level property: always 1 redeemed item per add
       if ((line as any).loyaltyFreeItem?.value === "true") {
-        return true;
+        freeQty = 1;
       }
 
-      // Fallback: check cart-level map
-      const variantId = line.merchandise.id;
-      return (
-        freeItemsMap[variantId] !== undefined &&
-        freeItemsMap[variantId].quantity > 0
-      );
-    });
+      // Cart-level map: use the stored redeemed quantity
+      if (freeQty === 0) {
+        const variantId = line.merchandise.id;
+        const entry = freeItemsMap[variantId];
+        if (entry && entry.quantity > 0) {
+          freeQty = entry.quantity;
+        }
+      }
+
+      if (freeQty > 0) {
+        // Never discount more than the actual line quantity
+        const cappedQty = Math.min(freeQty, line.quantity);
+        freeProductLines.push({ lineId: line.id, freeQty: cappedQty });
+      }
+    }
 
     if (freeProductLines.length > 0) {
-      const candidates = freeProductLines.map((line) => ({
+      const candidates = freeProductLines.map(({ lineId, freeQty }) => ({
         message: "FREE - Loyalty Reward",
         targets: [
           {
             cartLine: {
-              id: line.id,
+              id: lineId,
+              quantity: freeQty,
             },
           },
         ],
