@@ -78,10 +78,20 @@ export function cartLinesDiscountsGenerateRun(
       } catch (e) {}
     }
 
+    // Match free products by EITHER:
+    // 1. Cart-level attribute _loyalty_free_items (legacy / map-based)
+    // 2. Line-level attribute _loyalty_free_item === "true" (new / property-based)
     const freeProductLines = input.cart.lines.filter((line) => {
       if (line.merchandise.__typename !== "ProductVariant") {
         return false;
       }
+
+      // Check line-level property first (most reliable)
+      if ((line as any).loyaltyFreeItem?.value === "true") {
+        return true;
+      }
+
+      // Fallback: check cart-level map
       const variantId = line.merchandise.id;
       return (
         freeItemsMap[variantId] !== undefined &&

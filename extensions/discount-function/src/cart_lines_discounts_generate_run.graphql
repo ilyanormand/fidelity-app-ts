@@ -16,6 +16,10 @@ query CartInput {
     }
     lines {
       id
+      loyaltyFreeItem: attribute(key: "_loyalty_free_item") {
+        key
+        value
+      }
       merchandise {
         __typename
         ... on ProductVariant {

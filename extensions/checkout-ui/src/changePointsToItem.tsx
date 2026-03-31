@@ -61,11 +61,13 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         // fail-open — network error during validation
       }
 
-      // Add the product to the cart
+      // Add the product to the cart with a line-level property so the
+      // storefront loyalty-guard can detect (and clean up) abandoned free items.
       const addResult = await applyCartLinesChange({
         type: "addCartLine",
         merchandiseId: reward.shopifyVariantId,
         quantity: 1,
+        attributes: [{ key: "_loyalty_free_item", value: "true" }],
       });
       if (addResult.type === "error") return;
 
@@ -86,7 +88,10 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         value: JSON.stringify(freeItemsMap),
       });
 
-      // Update total points spent attribute
+      // Update total points spent attribute — validatePointsBalance() in
+      // Checkout.jsx will observe the attribute change and recalculate
+      // `balance = metafieldsBalance - (_loyalty_points_to_redeem + _loyalty_points_spent)`
+      // so we do NOT call setBalance here to avoid double-deduction.
       const totalSpent = Object.values(freeItemsMap).reduce(
         (sum, item) => sum + item.spent,
         0,
@@ -96,9 +101,6 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         key: "_loyalty_points_spent",
         value: String(totalSpent),
       });
-
-      // Reflect deduction in local balance display
-      setBalance((prev: number) => prev - reward.pointsCost);
     } catch (err) {
       console.error("[changePointsToItem] redeemProduct error:", err);
     } finally {

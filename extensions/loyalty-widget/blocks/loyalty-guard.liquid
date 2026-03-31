@@ -446,14 +446,18 @@
     };
 
     // ─── CHECKOUT ABANDONMENT CLEANUP ────────────────────────────────────────
-    // When the user navigates away from checkout back to the storefront without
-    // completing the order, we must:
-    //   1. Remove any products added via "Points → Free Product" redemption
-    //   2. Clear _loyalty_free_items and _loyalty_points_spent cart attributes
-    // The metafield balance is always correct (points are only deducted in the
-    // orders/paid webhook), so no metafield update is needed here.
+    // When the user returns to the storefront after leaving checkout without
+    // completing the order, we remove any products that were added via the
+    // "Points → Free Product" redemption.
+    //
+    // Detection uses cart line PROPERTIES (item.properties._loyalty_free_item)
+    // set by the checkout extension when adding the product. Line properties
+    // are always visible in /cart.js — unlike checkout attributes which may
+    // not sync back to the storefront cart.
+    //
+    // The metafield balance is always correct (points are only deducted in
+    // the orders/paid webhook), so no metafield update is needed.
     async function cleanupCheckoutAbandonment() {
-      // Only run on storefront pages — skip checkout, order-status, etc.
       const path = window.location.pathname;
       if (
         path.startsWith('/checkouts') ||
@@ -463,48 +467,29 @@
 
       let cart;
       try {
-        cart = await fetch('/cart.js').then(r => r.json());
+        cart = await originalFetch('/cart.js').then(r => r.json());
       } catch (e) { return; }
 
-      const freeItemsRaw = cart.attributes && cart.attributes['_loyalty_free_items'];
-      if (!freeItemsRaw) return; // nothing to clean up
+      // Find cart items with the _loyalty_free_item property
+      const freeItems = (cart.items || []).filter(
+        item => item.properties && item.properties['_loyalty_free_item'] === 'true'
+      );
+      if (!freeItems.length) return;
 
-      let freeItemsMap = {};
-      try {
-        freeItemsMap = JSON.parse(freeItemsRaw);
-      } catch (e) { return; }
-
-      const gidKeys = Object.keys(freeItemsMap);
-      if (!gidKeys.length) return;
-
-      // Build updates: for each redeemed variant, reduce cart quantity by the
-      // number of redeemed units (or remove entirely if that's all that's there)
+      // Remove them by setting quantity to 0
       const updates = {};
-      for (const gid of gidKeys) {
-        const numericId = gid.split('/').pop();
-        if (!numericId) continue;
-
-        const cartItem = (cart.items || []).find(
-          item => String(item.variant_id) === numericId
-        );
-        if (!cartItem) continue;
-
-        const redeemedQty = freeItemsMap[gid]?.quantity ?? 1;
-        const newQty = Math.max(0, cartItem.quantity - redeemedQty);
-        updates[cartItem.key] = newQty;
+      for (const item of freeItems) {
+        updates[item.key] = 0;
       }
 
       try {
-        // Remove the redeemed items from cart
-        if (Object.keys(updates).length > 0) {
-          await originalFetch('/cart/update.js', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates }),
-          });
-        }
+        await originalFetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates }),
+        });
 
-        // Clear the loyalty checkout attributes
+        // Clear the loyalty checkout attributes as well
         await originalFetch('/cart/update.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -516,13 +501,15 @@
           }),
         });
 
-        console.log('[LoyaltyGuard] Checkout abandonment cleanup: removed', gidKeys.length, 'redeemed item(s) from cart.');
+        // Clear the cached reward items so the guard stops blocking
+        localStorage.removeItem(REWARD_ITEMS_CACHE_KEY);
+
+        console.log('[LoyaltyGuard] Cleanup: removed', freeItems.length, 'abandoned free item(s) from cart.');
       } catch (e) {
         console.warn('[LoyaltyGuard] Cleanup error:', e);
       }
     }
 
-    // Run cleanup once on page load (after fetch interception is set up)
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', cleanupCheckoutAbandonment);
     } else {
