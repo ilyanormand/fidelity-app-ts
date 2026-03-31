@@ -445,6 +445,91 @@
       return originalFetch(...args);
     };
 
+    // ─── CHECKOUT ABANDONMENT CLEANUP ────────────────────────────────────────
+    // When the user navigates away from checkout back to the storefront without
+    // completing the order, we must:
+    //   1. Remove any products added via "Points → Free Product" redemption
+    //   2. Clear _loyalty_free_items and _loyalty_points_spent cart attributes
+    // The metafield balance is always correct (points are only deducted in the
+    // orders/paid webhook), so no metafield update is needed here.
+    async function cleanupCheckoutAbandonment() {
+      // Only run on storefront pages — skip checkout, order-status, etc.
+      const path = window.location.pathname;
+      if (
+        path.startsWith('/checkouts') ||
+        path.startsWith('/orders') ||
+        path.includes('/thank_you')
+      ) return;
+
+      let cart;
+      try {
+        cart = await fetch('/cart.js').then(r => r.json());
+      } catch (e) { return; }
+
+      const freeItemsRaw = cart.attributes && cart.attributes['_loyalty_free_items'];
+      if (!freeItemsRaw) return; // nothing to clean up
+
+      let freeItemsMap = {};
+      try {
+        freeItemsMap = JSON.parse(freeItemsRaw);
+      } catch (e) { return; }
+
+      const gidKeys = Object.keys(freeItemsMap);
+      if (!gidKeys.length) return;
+
+      // Build updates: for each redeemed variant, reduce cart quantity by the
+      // number of redeemed units (or remove entirely if that's all that's there)
+      const updates = {};
+      for (const gid of gidKeys) {
+        const numericId = gid.split('/').pop();
+        if (!numericId) continue;
+
+        const cartItem = (cart.items || []).find(
+          item => String(item.variant_id) === numericId
+        );
+        if (!cartItem) continue;
+
+        const redeemedQty = freeItemsMap[gid]?.quantity ?? 1;
+        const newQty = Math.max(0, cartItem.quantity - redeemedQty);
+        updates[cartItem.key] = newQty;
+      }
+
+      try {
+        // Remove the redeemed items from cart
+        if (Object.keys(updates).length > 0) {
+          await originalFetch('/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates }),
+          });
+        }
+
+        // Clear the loyalty checkout attributes
+        await originalFetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: {
+              '_loyalty_free_items': '',
+              '_loyalty_points_spent': '',
+            },
+          }),
+        });
+
+        console.log('[LoyaltyGuard] Checkout abandonment cleanup: removed', gidKeys.length, 'redeemed item(s) from cart.');
+      } catch (e) {
+        console.warn('[LoyaltyGuard] Cleanup error:', e);
+      }
+    }
+
+    // Run cleanup once on page load (after fetch interception is set up)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', cleanupCheckoutAbandonment);
+    } else {
+      cleanupCheckoutAbandonment();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url) {
       this._url = url;

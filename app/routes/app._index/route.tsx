@@ -17,6 +17,7 @@ import {
 import { checkSystem } from "../../utils/checkSystem";
 import { getGeneralStats } from "../../utils/getGeneralStats";
 import { ensureLoyaltyMetafields } from "../../utils/metafields.server";
+import { ensureLoyaltyDiscountFunction } from "../../utils/ensureDiscountFunction.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -26,6 +27,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Ensure metafield definition exists (runs on every dashboard load)
   await ensureLoyaltyMetafields(admin);
+  // Ensure the loyalty discount function is registered as an automatic discount
+  await ensureLoyaltyDiscountFunction(admin);
 
   // Get points stats from database
   let pointsStats;
