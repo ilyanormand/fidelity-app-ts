@@ -5,7 +5,7 @@ import { fetchRewardProducts, parseFreeItemsAttribute, RewardProduct } from "./u
 
 const APP_BACKEND_URL = "https://staging.fwn-tech.com";
 
-export default function ChangePointsToItem({ balance, setBalance, shopify }) {
+export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId }) {
   const [rewards, setRewards] = useState<RewardProduct[]>([]);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -61,8 +61,10 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         // fail-open — network error during validation
       }
 
-      // Add the product to the cart with a line-level property so the
-      // storefront loyalty-guard can detect (and clean up) abandoned free items.
+      // Snapshot current cart lines before adding
+      const linesBefore = (shopify.lines?.current || []).map(l => l.id);
+
+      // Add the product to the cart with a line-level property for detection
       const addResult = await applyCartLinesChange({
         type: "addCartLine",
         merchandiseId: reward.shopifyVariantId,
@@ -70,6 +72,13 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         attributes: [{ key: "_loyalty_free_item", value: "true" }],
       });
       if (addResult.type === "error") return;
+
+      // Find the newly added line and register it for cleanup on unmount
+      const linesAfter = shopify.lines?.current || [];
+      const newLine = linesAfter.find(l => !linesBefore.includes(l.id));
+      if (newLine && registerFreeLineId) {
+        registerFreeLineId(newLine.id, 1);
+      }
 
       // Update _loyalty_free_items attribute
       const attrsArray = shopify.attributes?.current ?? [];
