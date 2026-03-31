@@ -1,46 +1,19 @@
 /**
- * Ensures the loyalty cart-lines discount function is registered as an
- * automatic discount in the Shopify store.
+ * Ensures the loyalty discount function is registered as an automatic discount
+ * in the Shopify store.
  *
  * The Shopify Function (discount-function-rs) only runs when there is an
- * active automatic discount that references it.  This utility idempotently
- * creates that discount if it doesn't already exist.
+ * active automatic discount that references it AND specifies the correct
+ * discountClasses (PRODUCT, ORDER, SHIPPING).
+ *
+ * This utility idempotently creates / re-creates that discount if it doesn't
+ * already exist or is misconfigured.
  */
 
 const DISCOUNT_TITLE = "Loyalty Free Products (auto)";
 
-/**
- * Find the function ID for the `cart.lines.discounts.generate.run` target
- * that belongs to this app.
- */
-async function getLoyaltyFunctionId(admin: any): Promise<string | null> {
-  const query = `
-    query GetShopifyFunctions {
-      shopifyFunctions(first: 25) {
-        nodes {
-          id
-          apiType
-          title
-        }
-      }
-    }
-  `;
-
-  try {
-    const res = await admin.graphql(query);
-    const data = await res.json();
-    const fns: Array<{ id: string; apiType: string; title: string }> =
-      data.data?.shopifyFunctions?.nodes ?? [];
-
-    const match = fns.find(
-      (fn) => fn.apiType === "cart_lines_discounts_generate_run",
-    );
-    return match?.id ?? null;
-  } catch (err) {
-    console.error("[ensureDiscountFunction] Failed to query functions:", err);
-    return null;
-  }
-}
+// The handle is defined in extensions/discount-function/shopify.extension.toml
+const FUNCTION_HANDLE = "discount-function-rs";
 
 /**
  * Check whether an active automatic app discount with our title already exists.
@@ -56,6 +29,7 @@ async function loyaltyDiscountAlreadyExists(admin: any): Promise<boolean> {
             ... on DiscountAutomaticApp {
               title
               status
+              discountClasses
             }
           }
         }
@@ -67,11 +41,14 @@ async function loyaltyDiscountAlreadyExists(admin: any): Promise<boolean> {
     const res = await admin.graphql(query);
     const data = await res.json();
     const nodes = data.data?.automaticDiscountNodes?.nodes ?? [];
-    return nodes.some(
-      (n: any) =>
-        n.automaticDiscount?.title === DISCOUNT_TITLE &&
-        n.automaticDiscount?.status !== "EXPIRED",
-    );
+    return nodes.some((n: any) => {
+      const d = n.automaticDiscount;
+      if (d?.title !== DISCOUNT_TITLE) return false;
+      if (d?.status === "EXPIRED") return false;
+      // Verify it has the required discount classes
+      const classes: string[] = d?.discountClasses ?? [];
+      return classes.includes("PRODUCT") && classes.includes("ORDER");
+    });
   } catch (err) {
     console.error(
       "[ensureDiscountFunction] Failed to check existing discounts:",
@@ -82,12 +59,10 @@ async function loyaltyDiscountAlreadyExists(admin: any): Promise<boolean> {
 }
 
 /**
- * Create the automatic discount linked to the loyalty function.
+ * Create the automatic discount linked to the loyalty function via
+ * the stable function handle (no need to query for function ID).
  */
-async function createLoyaltyDiscountFunction(
-  admin: any,
-  functionId: string,
-): Promise<boolean> {
+async function createLoyaltyDiscountFunction(admin: any): Promise<boolean> {
   const mutation = `
     mutation CreateLoyaltyAutoDiscount($input: DiscountAutomaticAppInput!) {
       discountAutomaticAppCreate(automaticAppDiscount: $input) {
@@ -95,6 +70,7 @@ async function createLoyaltyDiscountFunction(
           discountId
           title
           status
+          discountClasses
         }
         userErrors {
           field
@@ -110,7 +86,8 @@ async function createLoyaltyDiscountFunction(
       variables: {
         input: {
           title: DISCOUNT_TITLE,
-          functionId,
+          functionHandle: FUNCTION_HANDLE,
+          discountClasses: ["PRODUCT", "ORDER", "SHIPPING"],
           startsAt: new Date().toISOString(),
           combinesWith: {
             orderDiscounts: true,
@@ -135,7 +112,7 @@ async function createLoyaltyDiscountFunction(
 
     const created = data.data?.discountAutomaticAppCreate?.automaticAppDiscount;
     console.log(
-      `✓ Created loyalty discount function: ${created?.title} (${created?.status})`,
+      `✓ Created loyalty discount function: ${created?.title} (${created?.status}) classes=${created?.discountClasses}`,
     );
     return true;
   } catch (err) {
@@ -144,6 +121,60 @@ async function createLoyaltyDiscountFunction(
       err,
     );
     return false;
+  }
+}
+
+/**
+ * Delete any stale/broken automatic discounts with our title so we can
+ * re-create them with the correct discountClasses.
+ */
+async function deleteStaleLoyaltyDiscounts(admin: any): Promise<void> {
+  const query = `
+    query StaleLoyaltyDiscounts {
+      automaticDiscountNodes(first: 25, query: "title:${DISCOUNT_TITLE}") {
+        nodes {
+          id
+          automaticDiscount {
+            __typename
+            ... on DiscountAutomaticApp {
+              title
+              status
+              discountClasses
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const res = await admin.graphql(query);
+    const data = await res.json();
+    const nodes = data.data?.automaticDiscountNodes?.nodes ?? [];
+
+    for (const node of nodes) {
+      const d = node.automaticDiscount;
+      if (d?.title !== DISCOUNT_TITLE) continue;
+
+      // Delete discounts that are missing PRODUCT class (broken)
+      const classes: string[] = d?.discountClasses ?? [];
+      if (!classes.includes("PRODUCT")) {
+        console.log(
+          `[ensureDiscountFunction] Deleting stale discount ${node.id} (classes: ${classes.join(",") || "none"})`,
+        );
+        await admin.graphql(
+          `mutation DeleteDiscount($id: ID!) {
+            discountAutomaticDelete(id: $id) {
+              deletedAutomaticDiscountId
+              userErrors { field message }
+            }
+          }`,
+          { variables: { id: node.id } },
+        );
+      }
+    }
+  } catch (err) {
+    console.warn("[ensureDiscountFunction] Failed to clean stale discounts:", err);
   }
 }
 
@@ -158,18 +189,12 @@ export async function ensureLoyaltyDiscountFunction(admin: any): Promise<void> {
       return;
     }
 
-    const functionId = await getLoyaltyFunctionId(admin);
-    if (!functionId) {
-      console.warn(
-        "[ensureDiscountFunction] Could not find cart_lines_discounts_generate_run function. " +
-          "Make sure the app is deployed with `shopify app deploy`.",
-      );
-      return;
-    }
+    // Delete any stale/misconfigured discounts before re-creating
+    await deleteStaleLoyaltyDiscounts(admin);
 
-    await createLoyaltyDiscountFunction(admin, functionId);
+    console.log("[ensureDiscountFunction] Creating discount with handle:", FUNCTION_HANDLE);
+    await createLoyaltyDiscountFunction(admin);
   } catch (err) {
-    // Non-fatal — app still works without automatic discount, just won't apply free-product discounts
     console.error("[ensureDiscountFunction] Unexpected error:", err);
   }
 }
