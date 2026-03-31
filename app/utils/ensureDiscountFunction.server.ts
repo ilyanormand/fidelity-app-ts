@@ -9,42 +9,7 @@
 const DISCOUNT_TITLE = "Loyalty Free Products (auto)";
 const FUNCTION_HANDLE = "discount-function-rs";
 
-async function getLoyaltyFunctionId(admin: any): Promise<string | null> {
-  const query = `
-    query GetShopifyFunctions {
-      shopifyFunctions(first: 25) {
-        nodes {
-          id
-          apiType
-          title
-        }
-      }
-    }
-  `;
-
-  try {
-    const res = await admin.graphql(query);
-    const data = await res.json();
-    const fns: Array<{ id: string; apiType: string; title: string }> =
-      data.data?.shopifyFunctions?.nodes ?? [];
-
-    console.log(
-      "[ensureDiscountFunction] Found functions:",
-      fns.map((f) => `${f.title} (${f.apiType})`).join(", "),
-    );
-
-    const match = fns.find(
-      (fn) => fn.apiType === "cart_lines_discounts_generate_run",
-    );
-    return match?.id ?? null;
-  } catch (err) {
-    console.error("[ensureDiscountFunction] Failed to query functions:", err);
-    return null;
-  }
-}
-
 async function findExistingDiscount(admin: any): Promise<{
-  exists: boolean;
   isCorrect: boolean;
   staleIds: string[];
 }> {
@@ -71,19 +36,6 @@ async function findExistingDiscount(admin: any): Promise<{
     const data = await res.json();
     const nodes = data.data?.automaticDiscountNodes?.nodes ?? [];
 
-    console.log(
-      "[ensureDiscountFunction] All discounts:",
-      JSON.stringify(
-        nodes.map((n: any) => ({
-          id: n.id,
-          title: n.automaticDiscount?.title,
-          type: n.automaticDiscount?.__typename,
-          status: n.automaticDiscount?.status,
-          classes: n.automaticDiscount?.discountClasses,
-        })),
-      ),
-    );
-
     let isCorrect = false;
     const staleIds: string[] = [];
 
@@ -104,10 +56,10 @@ async function findExistingDiscount(admin: any): Promise<{
       }
     }
 
-    return { exists: isCorrect || staleIds.length > 0, isCorrect, staleIds };
+    return { isCorrect, staleIds };
   } catch (err) {
     console.error("[ensureDiscountFunction] Failed to check discounts:", err);
-    return { exists: false, isCorrect: false, staleIds: [] };
+    return { isCorrect: false, staleIds: [] };
   }
 }
 
@@ -134,10 +86,7 @@ async function deleteDiscount(admin: any, id: string): Promise<void> {
   }
 }
 
-async function createDiscount(
-  admin: any,
-  functionId: string,
-): Promise<boolean> {
+async function createDiscount(admin: any): Promise<boolean> {
   const mutation = `
     mutation CreateLoyaltyAutoDiscount($input: DiscountAutomaticAppInput!) {
       discountAutomaticAppCreate(automaticAppDiscount: $input) {
@@ -156,9 +105,9 @@ async function createDiscount(
     }
   `;
 
-  const input: Record<string, any> = {
+  const input = {
     title: DISCOUNT_TITLE,
-    functionId,
+    functionHandle: FUNCTION_HANDLE,
     discountClasses: ["PRODUCT", "ORDER", "SHIPPING"],
     startsAt: new Date().toISOString(),
     combinesWith: {
@@ -169,8 +118,8 @@ async function createDiscount(
   };
 
   console.log(
-    "[ensureDiscountFunction] Creating discount with input:",
-    JSON.stringify(input),
+    "[ensureDiscountFunction] Creating discount with functionHandle:",
+    FUNCTION_HANDLE,
   );
 
   try {
@@ -182,33 +131,15 @@ async function createDiscount(
     const errors = data.data?.discountAutomaticAppCreate?.userErrors ?? [];
 
     if (errors.length > 0) {
-      console.error("[ensureDiscountFunction] Creation userErrors:", JSON.stringify(errors));
-
-      // If functionId fails, try with functionHandle instead
-      if (errors.some((e: any) => e.field?.includes("functionId"))) {
-        console.log("[ensureDiscountFunction] Retrying with functionHandle...");
-        input.functionHandle = FUNCTION_HANDLE;
-        delete input.functionId;
-
-        const res2 = await admin.graphql(mutation, {
-          variables: { input },
-        });
-        const data2 = await res2.json();
-        const errors2 = data2.data?.discountAutomaticAppCreate?.userErrors ?? [];
-        if (errors2.length > 0) {
-          console.error("[ensureDiscountFunction] Retry userErrors:", JSON.stringify(errors2));
-          return false;
-        }
-        const created2 = data2.data?.discountAutomaticAppCreate?.automaticAppDiscount;
-        console.log(
-          `✓ Created loyalty discount (handle): ${created2?.title} classes=${created2?.discountClasses}`,
-        );
-        return true;
-      }
+      console.error(
+        "[ensureDiscountFunction] Creation userErrors:",
+        JSON.stringify(errors),
+      );
       return false;
     }
 
-    const created = data.data?.discountAutomaticAppCreate?.automaticAppDiscount;
+    const created =
+      data.data?.discountAutomaticAppCreate?.automaticAppDiscount;
     console.log(
       `✓ Created loyalty discount: ${created?.title} (${created?.status}) classes=${created?.discountClasses}`,
     );
@@ -219,7 +150,9 @@ async function createDiscount(
   }
 }
 
-export async function ensureLoyaltyDiscountFunction(admin: any): Promise<void> {
+export async function ensureLoyaltyDiscountFunction(
+  admin: any,
+): Promise<void> {
   try {
     console.log("[ensureDiscountFunction] Checking...");
 
@@ -230,22 +163,11 @@ export async function ensureLoyaltyDiscountFunction(admin: any): Promise<void> {
       return;
     }
 
-    // Delete any stale/broken discounts
     for (const id of staleIds) {
       await deleteDiscount(admin, id);
     }
 
-    // Find the function ID
-    const functionId = await getLoyaltyFunctionId(admin);
-    if (!functionId) {
-      console.warn(
-        "[ensureDiscountFunction] Function not found. Run `shopify app deploy` first.",
-      );
-      return;
-    }
-    console.log("[ensureDiscountFunction] Found functionId:", functionId);
-
-    await createDiscount(admin, functionId);
+    await createDiscount(admin);
   } catch (err) {
     console.error("[ensureDiscountFunction] Unexpected error:", err);
   }
