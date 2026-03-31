@@ -33,32 +33,34 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
     try {
       if (balance < reward.pointsCost) return;
 
-      // Server-side guard against abuse
+      // Confirm redemption: validates AND deducts points from DB + metafield
+      let confirmResult: any = null;
       try {
         const token = await shopify.sessionToken.get();
         const res = await fetch(
-          `${APP_BACKEND_URL}/api/checkout?path=validate-product-redemption`,
+          `${APP_BACKEND_URL}/api/checkout?path=confirm-product-redemption`,
           {
             method: "POST",
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({
               variantId: reward.shopifyVariantId,
               pointsCost: reward.pointsCost,
+              productTitle: reward.shopifyProductTitle,
               token,
             }),
           },
         );
-        const vd = await res.json();
-        if (!vd.success) {
+        confirmResult = await res.json();
+        if (!confirmResult.success) {
           const msg =
-            vd.error === "insufficient_points"
+            confirmResult.error === "insufficient_points"
               ? shopify.i18n?.translate("notEnoughPoints") || "Points insuffisants"
               : shopify.i18n?.translate("errors.errorChangePoints") || "Erreur de validation";
           setValidationError(msg);
           return;
         }
       } catch {
-        // fail-open — network error during validation
+        // fail-open — network error during confirmation
       }
 
       // Snapshot current cart lines before adding
@@ -80,7 +82,7 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
         registerFreeLineId(newLine.id, 1);
       }
 
-      // Update _loyalty_free_items attribute
+      // Update _loyalty_free_items attribute (used for cleanup detection)
       const attrsArray = shopify.attributes?.current ?? [];
       const attrsMap: Record<string, string> = {};
       attrsArray.forEach((a: any) => { if (a?.key) attrsMap[a.key] = a.value; });
@@ -97,10 +99,6 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
         value: JSON.stringify(freeItemsMap),
       });
 
-      // Update total points spent attribute — validatePointsBalance() in
-      // Checkout.jsx will observe the attribute change and recalculate
-      // `balance = metafieldsBalance - (_loyalty_points_to_redeem + _loyalty_points_spent)`
-      // so we do NOT call setBalance here to avoid double-deduction.
       const totalSpent = Object.values(freeItemsMap).reduce(
         (sum, item) => sum + item.spent,
         0,
@@ -110,6 +108,11 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
         key: "_loyalty_points_spent",
         value: String(totalSpent),
       });
+
+      // Update UI balance from confirmed server response
+      if (confirmResult?.currentBalance !== undefined) {
+        setBalance(confirmResult.currentBalance);
+      }
     } catch (err) {
       console.error("[changePointsToItem] redeemProduct error:", err);
     } finally {

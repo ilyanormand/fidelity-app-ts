@@ -169,6 +169,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Process free product redemptions from cart attributes (_loyalty_free_items)
+    // Points are now deducted at checkout confirm time (confirm-product-redemption),
+    // so this webhook only needs to stamp the order ID onto existing records.
+    // If for some reason the confirm didn't happen, fall back to deducting here.
     try {
         const noteAttrs: Record<string, string> = {};
         (order.note_attributes || []).forEach((a) => {
@@ -179,93 +182,117 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const pointsSpentRaw = noteAttrs["_loyalty_points_spent"];
 
         if (freeItemsRaw && pointsSpentRaw) {
-            const idempotencyKey = `order_${shopifyOrderId}_free_items`;
+            const totalPointsSpent = parseInt(pointsSpentRaw, 10) || 0;
+            if (totalPointsSpent <= 0) {
+                console.log(`[orders/paid] _loyalty_points_spent is 0 — skipping free product processing.`);
+            } else {
+                const customer = await prisma.customer.findUnique({
+                    where: { shopifyCustomerId_shopId: { shopifyCustomerId, shopId: shop } },
+                });
 
-            const alreadyProcessed = await prisma.ledger.findFirst({
-                where: { externalId: idempotencyKey, reason: "free_product_redemption" },
-            });
-
-            if (!alreadyProcessed) {
-                let freeItemsMap: Record<string, { quantity: number; spent: number }> = {};
-                try {
-                    const parsed = JSON.parse(freeItemsRaw);
-                    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                        freeItemsMap = parsed;
-                    }
-                } catch {
-                    console.warn(`[orders/paid] Could not parse _loyalty_free_items for order ${shopifyOrderId}`);
-                }
-
-                const totalPointsSpent = parseInt(pointsSpentRaw, 10) || 0;
-
-                if (totalPointsSpent > 0 && Object.keys(freeItemsMap).length > 0) {
-                    const customer = await prisma.customer.findUnique({
-                        where: { shopifyCustomerId_shopId: { shopifyCustomerId, shopId: shop } },
+                if (customer) {
+                    // Check if points were already deducted at confirm time
+                    // (confirm-product-redemption creates entries with reason "free_product_redemption"
+                    //  and source "checkout_confirm" in metadata)
+                    const recentDeductions = await prisma.ledger.findMany({
+                        where: {
+                            customerId: customer.id,
+                            reason: "free_product_redemption",
+                            amount: { lt: 0 },
+                            createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+                        },
+                        orderBy: { createdAt: "desc" },
+                        take: 10,
                     });
 
-                    if (customer) {
-                        // Cap deduction at current balance to avoid negative balance
-                        const safeDeduction = Math.min(totalPointsSpent, customer.currentBalance ?? 0);
+                    const alreadyDeducted = recentDeductions.some((entry) => {
+                        const meta = entry.metadata as any;
+                        return meta?.source === "checkout_confirm";
+                    });
 
-                        if (safeDeduction < totalPointsSpent) {
-                            console.warn(
-                                `[orders/paid] FRAUD ALERT: order ${shopifyOrderId} tried to spend ${totalPointsSpent} pts but customer only has ${customer.currentBalance}. Deducting ${safeDeduction}.`
-                            );
+                    const orderIdempotencyKey = `order_${shopifyOrderId}_free_items`;
+                    const webhookAlreadyProcessed = await prisma.ledger.findFirst({
+                        where: { externalId: orderIdempotencyKey, reason: "free_product_redemption" },
+                    });
+
+                    if (alreadyDeducted) {
+                        // Points were already deducted at confirm time — just stamp the order ID
+                        // on the most recent confirm entry so we can trace it
+                        const latestConfirm = recentDeductions.find((e) => (e.metadata as any)?.source === "checkout_confirm");
+                        if (latestConfirm && !latestConfirm.shopifyOrderId) {
+                            await prisma.ledger.update({
+                                where: { id: latestConfirm.id },
+                                data: { shopifyOrderId: BigInt(shopifyOrderId), externalId: orderIdempotencyKey },
+                            });
+                        }
+                        console.log(`✅ [orders/paid] Free product points already deducted at confirm time for order ${shopifyOrderId} — linked.`);
+                    } else if (!webhookAlreadyProcessed) {
+                        // Fallback: points were NOT deducted at confirm time — deduct now
+                        let freeItemsMap: Record<string, { quantity: number; spent: number }> = {};
+                        try {
+                            const parsed = JSON.parse(freeItemsRaw);
+                            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                                freeItemsMap = parsed;
+                            }
+                        } catch {
+                            console.warn(`[orders/paid] Could not parse _loyalty_free_items for order ${shopifyOrderId}`);
                         }
 
-                        await prisma.$transaction(async (tx) => {
-                            // One ledger entry for the total deduction
-                            await tx.ledger.create({
-                                data: {
-                                    customerId: customer.id,
-                                    amount: -safeDeduction,
-                                    reason: "free_product_redemption",
-                                    externalId: idempotencyKey,
-                                    shopifyOrderId: BigInt(shopifyOrderId),
-                                    metadata: {
-                                        orderId: shopifyOrderId,
-                                        freeItems: freeItemsMap,
-                                        pointsSpentAttr: totalPointsSpent,
-                                    },
-                                },
-                            });
+                        if (Object.keys(freeItemsMap).length > 0) {
+                            const safeDeduction = Math.min(totalPointsSpent, customer.currentBalance ?? 0);
 
-                            // One Redemption record per variant redeemed
-                            for (const [variantId, itemData] of Object.entries(freeItemsMap)) {
-                                if (typeof itemData?.quantity === "number" && itemData.quantity > 0) {
-                                    await tx.redemption.create({
-                                        data: {
-                                            customerId: customer.id,
-                                            rewardName: `free_product:${variantId}:qty${itemData.quantity}`,
-                                            pointsSpent: typeof itemData.spent === "number" ? itemData.spent : 0,
-                                            shopifyDiscountCode: null,
+                            await prisma.$transaction(async (tx) => {
+                                await tx.ledger.create({
+                                    data: {
+                                        customerId: customer.id,
+                                        amount: -safeDeduction,
+                                        reason: "free_product_redemption",
+                                        externalId: orderIdempotencyKey,
+                                        shopifyOrderId: BigInt(shopifyOrderId),
+                                        metadata: {
+                                            orderId: shopifyOrderId,
+                                            freeItems: freeItemsMap,
+                                            pointsSpentAttr: totalPointsSpent,
+                                            source: "webhook_fallback",
                                         },
-                                    });
+                                    },
+                                });
+
+                                for (const [variantId, itemData] of Object.entries(freeItemsMap)) {
+                                    if (typeof itemData?.quantity === "number" && itemData.quantity > 0) {
+                                        await tx.redemption.create({
+                                            data: {
+                                                customerId: customer.id,
+                                                rewardName: `free_product:${variantId}:qty${itemData.quantity}`,
+                                                pointsSpent: typeof itemData.spent === "number" ? itemData.spent : 0,
+                                                shopifyDiscountCode: null,
+                                            },
+                                        });
+                                    }
                                 }
-                            }
 
-                            // Decrement balance
-                            await tx.customer.update({
-                                where: { id: customer.id },
-                                data: { currentBalance: { decrement: safeDeduction } },
+                                await tx.customer.update({
+                                    where: { id: customer.id },
+                                    data: { currentBalance: { decrement: safeDeduction } },
+                                });
                             });
-                        });
 
-                        const updatedCustomer = await prisma.customer.findUnique({
-                            where: { id: customer.id },
-                            select: { currentBalance: true },
-                        });
+                            const updatedCustomer = await prisma.customer.findUnique({
+                                where: { id: customer.id },
+                                select: { currentBalance: true },
+                            });
 
-                        console.log(
-                            `✅ [orders/paid] Deducted ${safeDeduction} pts for free products on order ${shopifyOrderId}. New balance: ${updatedCustomer?.currentBalance}`
-                        );
+                            console.log(
+                                `✅ [orders/paid] Fallback: deducted ${safeDeduction} pts for free products on order ${shopifyOrderId}. New balance: ${updatedCustomer?.currentBalance}`
+                            );
 
-                        await enqueueSyncBalance(shopifyCustomerId, updatedCustomer?.currentBalance ?? 0, shop!);
-                        await invalidateBalance(shopifyCustomerId, shop!);
+                            await enqueueSyncBalance(shopifyCustomerId, updatedCustomer?.currentBalance ?? 0, shop!);
+                            await invalidateBalance(shopifyCustomerId, shop!);
+                        }
+                    } else {
+                        console.log(`[orders/paid] Free product redemption already processed for order ${shopifyOrderId} — skipping.`);
                     }
                 }
-            } else {
-                console.log(`[orders/paid] Free product redemption already processed for order ${shopifyOrderId} — skipping.`);
             }
         }
     } catch (error) {

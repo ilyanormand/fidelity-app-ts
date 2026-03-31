@@ -55,25 +55,35 @@ function Extension() {
       const variantIds = Object.keys(freeItemsMap);
       if (!variantIds.length) return;
 
-      // Find cart lines matching the leftover free item variants
-      const linesToRemove = cartLines.filter((line) =>
-        line.merchandise?.id && variantIds.includes(line.merchandise.id)
-      );
+      let cleaned = 0;
+      for (const line of cartLines) {
+        const vid = line.merchandise?.id;
+        if (!vid || !variantIds.includes(vid)) continue;
 
-      for (const line of linesToRemove) {
+        const freeQty = freeItemsMap[vid]?.quantity || 0;
+        if (freeQty <= 0) continue;
+
         try {
-          await applyCartLinesChange({
-            type: "removeCartLine",
-            id: line.id,
-            quantity: line.quantity,
-          });
+          if (freeQty >= line.quantity) {
+            await applyCartLinesChange({
+              type: "removeCartLine",
+              id: line.id,
+              quantity: line.quantity,
+            });
+          } else {
+            await applyCartLinesChange({
+              type: "updateCartLine",
+              id: line.id,
+              quantity: line.quantity - freeQty,
+            });
+          }
+          cleaned++;
         } catch (e) {
-          console.warn("[Checkout] Failed to remove leftover free item:", e);
+          console.warn("[Checkout] Failed to clean leftover free item:", e);
         }
       }
 
-      // Clear attributes
-      if (linesToRemove.length > 0) {
+      if (cleaned > 0) {
         await shopify.applyAttributeChange({
           type: "updateAttribute",
           key: "_loyalty_free_items",
@@ -84,7 +94,7 @@ function Extension() {
           key: "_loyalty_points_spent",
           value: "",
         });
-        console.log("[Checkout] Cleaned up", linesToRemove.length, "leftover free item(s).");
+        console.log("[Checkout] Cleaned up", cleaned, "leftover free item(s).");
       }
     }
     cleanupLeftovers();

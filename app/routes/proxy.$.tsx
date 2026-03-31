@@ -433,6 +433,79 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       return corsJson(result, { status: result.status || (result.success ? 200 : 400) });
     }
 
+    // POST /apps/loyalty/rollback-product-redemption - Refund points for abandoned checkout
+    if (path === "rollback-product-redemption") {
+      if (!customerId || !shop) {
+        return corsJson({ success: false, error: "Missing customer or shop" }, { status: 400 });
+      }
+
+      let gid = customerId;
+      if (!gid.startsWith("gid://")) {
+        gid = `gid://shopify/Customer/${gid}`;
+      }
+
+      const { freeItems } = parsedBody;
+      if (!freeItems || typeof freeItems !== "object") {
+        return corsJson({ success: false, error: "freeItems is required" }, { status: 400 });
+      }
+
+      // freeItems format: { "gid://shopify/ProductVariant/123": { quantity: 1, spent: 50 }, ... }
+      let totalRefund = 0;
+      for (const [, val] of Object.entries(freeItems)) {
+        const item = val as any;
+        if (item && typeof item.spent === "number" && item.spent > 0) {
+          totalRefund += item.spent;
+        }
+      }
+
+      if (totalRefund <= 0) {
+        return corsJson({ success: true, refunded: 0 });
+      }
+
+      const customer = await prisma.customer.findFirst({
+        where: { shopifyCustomerId: gid, shopId: shop },
+        select: { id: true, currentBalance: true },
+      });
+
+      if (!customer) {
+        return corsJson({ success: false, error: "Customer not found" }, { status: 404 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.ledger.create({
+          data: {
+            customerId: customer.id,
+            amount: totalRefund,
+            reason: "free_product_rollback",
+            metadata: {
+              freeItems,
+              source: "checkout_abandoned",
+            },
+          },
+        });
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { currentBalance: { increment: totalRefund } },
+        });
+      });
+
+      const updated = await prisma.customer.findUnique({
+        where: { id: customer.id },
+        select: { currentBalance: true },
+      });
+
+      log.success(`rollback-product-redemption: refunded ${totalRefund} pts. New balance: ${updated?.currentBalance}`);
+
+      try {
+        const { enqueueSyncBalance } = await import("../queues/shopify-sync.queue");
+        const { invalidateBalance } = await import("../utils/cache.server");
+        await enqueueSyncBalance(gid, updated?.currentBalance ?? 0, shop);
+        await invalidateBalance(gid, shop);
+      } catch {}
+
+      return corsJson({ success: true, refunded: totalRefund, newBalance: updated?.currentBalance });
+    }
+
     // POST /apps/loyalty/subscribe-newsletter - Subscribe email to newsletter via Admin API
     if (path === "subscribe-newsletter") {
       const { email } = parsedBody;

@@ -18,6 +18,8 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { processRedemption } from "../utils/redemption.server";
 import { createLogger } from "../utils/logger.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "../utils/cache.server";
 
 const log = createLogger("api:checkout");
 
@@ -144,11 +146,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return corsJson(result, { status: (result as any).status || (result.success ? 200 : 400) });
   }
 
-  if (path === "validate-product-redemption") {
-    const { token, variantId, pointsCost } = body;
+  if (path === "validate-product-redemption" || path === "confirm-product-redemption") {
+    const { token, variantId, pointsCost, productTitle } = body;
     const { shop, customerGid } = decodeSessionToken(token);
 
-    log.info(`POST checkout/validate-product-redemption variantId=${variantId} pointsCost=${pointsCost} shop=${shop} customer=${customerGid}`);
+    log.info(`POST checkout/${path} variantId=${variantId} pointsCost=${pointsCost} shop=${shop} customer=${customerGid}`);
 
     if (!customerGid) {
       return corsJson({ success: false, error: "Customer must be logged in", requiresLogin: true }, { status: 401 });
@@ -167,7 +169,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const customer = await prisma.customer.findFirst({
       where: { shopifyCustomerId: customerGid, shopId: shop },
-      select: { currentBalance: true },
+      select: { id: true, currentBalance: true },
     });
 
     if (!customer) {
@@ -176,7 +178,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const balance = customer.currentBalance ?? 0;
     if (balance < cost) {
-      log.info(`validate-product-redemption: insufficient points balance=${balance} required=${cost}`);
+      log.info(`${path}: insufficient points balance=${balance} required=${cost}`);
       return corsJson({
         success: false,
         error: "insufficient_points",
@@ -185,8 +187,130 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }, { status: 400 });
     }
 
+    // confirm-product-redemption: deduct from DB immediately
+    if (path === "confirm-product-redemption") {
+      try {
+        const idempotencyKey = `checkout_product_${customerGid}_${variantId}_${Date.now()}`;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.ledger.create({
+            data: {
+              customerId: customer.id,
+              amount: -cost,
+              reason: "free_product_redemption",
+              externalId: idempotencyKey,
+              metadata: {
+                variantId,
+                productTitle: productTitle || variantId,
+                source: "checkout_confirm",
+              },
+            },
+          });
+
+          await tx.redemption.create({
+            data: {
+              customerId: customer.id,
+              rewardName: `free_product:${variantId}:qty1`,
+              pointsSpent: cost,
+            },
+          });
+
+          await tx.customer.update({
+            where: { id: customer.id },
+            data: { currentBalance: { decrement: cost } },
+          });
+        });
+
+        const updated = await prisma.customer.findUnique({
+          where: { id: customer.id },
+          select: { currentBalance: true },
+        });
+        const newBalance = updated?.currentBalance ?? 0;
+
+        log.success(`confirm-product-redemption: deducted ${cost} pts for ${variantId}. New balance: ${newBalance}`);
+
+        // Sync metafield asynchronously
+        await enqueueSyncBalance(customerGid, newBalance, shop).catch(() => {});
+        await invalidateBalance(customerGid, shop).catch(() => {});
+
+        return corsJson({
+          success: true,
+          authorized: true,
+          currentBalance: newBalance,
+          idempotencyKey,
+        });
+      } catch (err) {
+        log.error(`confirm-product-redemption: DB error — ${err}`);
+        return corsJson({ success: false, error: "Failed to deduct points" }, { status: 500 });
+      }
+    }
+
+    // validate-product-redemption: just check, don't deduct (legacy)
     log.success(`validate-product-redemption: authorized variantId=${variantId} balance=${balance} cost=${cost}`);
     return corsJson({ success: true, authorized: true, currentBalance: balance });
+  }
+
+  if (path === "rollback-product-redemption") {
+    const { token, variantId, pointsCost, productTitle } = body;
+    const { shop, customerGid } = decodeSessionToken(token);
+
+    log.info(`POST checkout/rollback-product-redemption variantId=${variantId} pointsCost=${pointsCost} shop=${shop} customer=${customerGid}`);
+
+    if (!customerGid || !shop || !variantId) {
+      return corsJson({ success: false, error: "Missing required fields" }, { status: 400 });
+    }
+
+    const cost = Number(pointsCost);
+    if (!Number.isFinite(cost) || cost <= 0) {
+      return corsJson({ success: false, error: "Invalid pointsCost" }, { status: 400 });
+    }
+
+    try {
+      const customer = await prisma.customer.findFirst({
+        where: { shopifyCustomerId: customerGid, shopId: shop },
+        select: { id: true, currentBalance: true },
+      });
+
+      if (!customer) {
+        return corsJson({ success: false, error: "Customer not found" }, { status: 404 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.ledger.create({
+          data: {
+            customerId: customer.id,
+            amount: cost,
+            reason: "free_product_rollback",
+            metadata: {
+              variantId,
+              productTitle: productTitle || variantId,
+              source: "checkout_abandoned",
+            },
+          },
+        });
+
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { currentBalance: { increment: cost } },
+        });
+      });
+
+      const updated = await prisma.customer.findUnique({
+        where: { id: customer.id },
+        select: { currentBalance: true },
+      });
+      const newBalance = updated?.currentBalance ?? 0;
+
+      log.success(`rollback-product-redemption: refunded ${cost} pts for ${variantId}. New balance: ${newBalance}`);
+
+      await enqueueSyncBalance(customerGid, newBalance, shop).catch(() => {});
+      await invalidateBalance(customerGid, shop).catch(() => {});
+
+      return corsJson({ success: true, newBalance });
+    } catch (err) {
+      log.error(`rollback-product-redemption: DB error — ${err}`);
+      return corsJson({ success: false, error: "Failed to rollback" }, { status: 500 });
+    }
   }
 
   return corsJson({ success: false, error: "Invalid path" }, { status: 404 });
