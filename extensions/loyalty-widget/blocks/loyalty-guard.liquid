@@ -450,13 +450,18 @@
     // completing the order, we remove any products that were added via the
     // "Points → Free Product" redemption.
     //
-    // Detection uses cart line PROPERTIES (item.properties._loyalty_free_item)
-    // set by the checkout extension when adding the product. Line properties
-    // are always visible in /cart.js — unlike checkout attributes which may
-    // not sync back to the storefront cart.
+    // Strategy:
+    //   1. Fetch the list of reward-product variant IDs from the app proxy
+    //   2. Fetch the current cart
+    //   3. Any cart item whose variant_id matches a reward product AND has a
+    //      line property "_loyalty_free_item" OR matches a known reward variant
+    //      gets removed (quantity → 0)
+    //   4. Clear cart attributes _loyalty_free_items and _loyalty_points_spent
     //
-    // The metafield balance is always correct (points are only deducted in
-    // the orders/paid webhook), so no metafield update is needed.
+    // The metafield balance is never touched here — points are only deducted
+    // in the orders/paid webhook.
+    const CLEANUP_KEY = 'loyalty_cleanup_done';
+
     async function cleanupCheckoutAbandonment() {
       const path = window.location.pathname;
       if (
@@ -465,20 +470,51 @@
         path.includes('/thank_you')
       ) return;
 
+      // Avoid running cleanup more than once per page load
+      if (window.__loyaltyCleanupRan) return;
+      window.__loyaltyCleanupRan = true;
+
       let cart;
       try {
         cart = await originalFetch('/cart.js').then(r => r.json());
       } catch (e) { return; }
 
-      // Find cart items with the _loyalty_free_item property
-      const freeItems = (cart.items || []).filter(
+      if (!cart.items || !cart.items.length) return;
+
+      // Strategy A: detect via line property (checkout extension sets this)
+      const byProperty = cart.items.filter(
         item => item.properties && item.properties['_loyalty_free_item'] === 'true'
       );
-      if (!freeItems.length) return;
 
-      // Remove them by setting quantity to 0
+      // Strategy B: detect via reward product variant IDs from backend
+      let rewardVariantNumericIds = [];
+      if (!byProperty.length) {
+        try {
+          const rpRes = await originalFetch('/apps/loyalty/reward-products', {
+            headers: { 'ngrok-skip-browser-warning': 'true' },
+          });
+          if (rpRes.ok) {
+            const rpData = await rpRes.json();
+            const products = rpData.rewardProducts || rpData.reward_products || [];
+            rewardVariantNumericIds = products.map(rp => {
+              const vid = rp.shopifyVariantId || rp.shopify_variant_id || '';
+              return vid.split('/').pop();
+            }).filter(Boolean);
+          }
+        } catch (e) {
+          console.warn('[LoyaltyGuard] Could not fetch reward products for cleanup:', e);
+        }
+      }
+
+      const byVariantId = rewardVariantNumericIds.length > 0
+        ? cart.items.filter(item => rewardVariantNumericIds.includes(String(item.variant_id)))
+        : [];
+
+      const itemsToRemove = byProperty.length > 0 ? byProperty : byVariantId;
+      if (!itemsToRemove.length) return;
+
       const updates = {};
-      for (const item of freeItems) {
+      for (const item of itemsToRemove) {
         updates[item.key] = 0;
       }
 
@@ -489,7 +525,6 @@
           body: JSON.stringify({ updates }),
         });
 
-        // Clear the loyalty checkout attributes as well
         await originalFetch('/cart/update.js', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -501,10 +536,8 @@
           }),
         });
 
-        // Clear the cached reward items so the guard stops blocking
         localStorage.removeItem(REWARD_ITEMS_CACHE_KEY);
-
-        console.log('[LoyaltyGuard] Cleanup: removed', freeItems.length, 'abandoned free item(s) from cart.');
+        console.log('[LoyaltyGuard] Cleanup: removed', itemsToRemove.length, 'abandoned free item(s) from cart.');
       } catch (e) {
         console.warn('[LoyaltyGuard] Cleanup error:', e);
       }

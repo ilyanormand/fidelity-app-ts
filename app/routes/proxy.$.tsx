@@ -235,6 +235,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       return corsJson({ success: true, rewards });
     }
 
+    // GET /apps/loyalty/reward-products — list active reward products (variant IDs)
+    if (path === "reward-products" && shop) {
+      const rewardProducts = await prisma.rewardProduct.findMany({
+        where: { shopId: shop, isActive: true },
+        select: { id: true, shopifyVariantId: true, shopifyProductTitle: true, pointsCost: true },
+        orderBy: { pointsCost: "asc" },
+      });
+      log.info(`Returned ${rewardProducts.length} reward products for shop=${shop}`);
+      return corsJson({ success: true, rewardProducts });
+    }
+
     // GET /apps/loyalty/transactions - Get customer transaction history
     if (path === "transactions" && gid) {
       const customer = await prisma.customer.findFirst({ where: { shopifyCustomerId: gid } });
