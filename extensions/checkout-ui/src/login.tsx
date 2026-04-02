@@ -1,15 +1,18 @@
 import "@shopify/ui-extensions/preact";
 
 export default function Login({ shopify }) {
+    const s = shopify.settings?.current || {};
+
+    const title = s.loyalty_program_title || shopify.i18n.translate("loyaltyProgram");
+    const message = s.login_message || shopify.i18n.translate("errors.joinAccount");
+    const buttonLabel = s.login_button || shopify.i18n.translate("components.login");
+
     return (
         <s-stack gap="base">
-
-            <s-text type="strong">
-                {shopify.i18n.translate("loyaltyProgram")}
-            </s-text>
+            <s-text type="strong">{title}</s-text>
 
             <s-banner tone="info">
-                <s-text>{shopify.i18n.translate("errors.joinAccount")}</s-text>
+                <s-text>{message}</s-text>
             </s-banner>
 
             <s-button
@@ -17,9 +20,8 @@ export default function Login({ shopify }) {
                 href="/account/login"
                 tone="neutral"
             >
-                {shopify.i18n.translate("components.login")}
+                {buttonLabel}
             </s-button>
-
         </s-stack>
     );
 }

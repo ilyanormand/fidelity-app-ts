@@ -7,6 +7,7 @@ interface RewardSelectProps {
   balance: number;
   setBalance: (balance: number) => void;
   applyDiscountCodeChange: (change: any) => Promise<any>;
+  settings?: Record<string, any>;
 }
 
 export default function RewardSelect({
@@ -15,6 +16,7 @@ export default function RewardSelect({
   balance,
   setBalance,
   applyDiscountCodeChange,
+  settings: s = {},
 }: RewardSelectProps) {
   const [rewards, setRewards] = useState<CheckoutReward[]>([]);
   const [selectedRewardId, setSelectedRewardId] = useState<string>("");
@@ -90,40 +92,45 @@ export default function RewardSelect({
     }
   }
 
+  const selectLabel = s.select_reward_label || shopify.i18n.translate("selectReward");
+  const applyLabel = s.apply_reward_button || shopify.i18n.translate("applyReward");
+  const cancelLabel = s.cancel_reward_button || shopify.i18n.translate("cancelReward");
+  const appliedLabel = s.reward_applied_text || shopify.i18n.translate("rewardApplied");
+  const loadingLabel = s.loading_rewards_text || shopify.i18n.translate("loadingRewards");
+  const noRewardsLabel = s.no_rewards_text || shopify.i18n.translate("noRewardsConfigured");
+  const notEnoughLabel = s.not_enough_points_text || shopify.i18n.translate("notEnoughPoints");
+  const pointsLabel = s.points_label || shopify.i18n.translate("points");
+
   if (isLoading) {
-    return (
-      <s-text tone="neutral">{shopify.i18n.translate("loadingRewards")}</s-text>
-    );
+    return <s-text tone="neutral">{loadingLabel}</s-text>;
   }
 
   if (rewards.length === 0) {
-    return (
-      <s-text tone="neutral">{shopify.i18n.translate("noRewardsConfigured")}</s-text>
-    );
+    return <s-text tone="neutral">{noRewardsLabel}</s-text>;
   }
 
   return (
     <s-stack gap="base">
-      <s-text type="strong">{shopify.i18n.translate("selectReward")}</s-text>
+      <s-text type="strong">{selectLabel}</s-text>
 
       {appliedCode ? (
         <s-banner tone="success">
           <s-text>
-            {shopify.i18n.translate("rewardApplied")}: {appliedCode}
+            {appliedLabel}: {appliedCode}
           </s-text>
         </s-banner>
       ) : (
         <s-select
-          label={shopify.i18n.translate("selectReward")}
+          label={selectLabel}
           value={selectedRewardId}
           onChange={(e: any) => setSelectedRewardId(e?.detail?.value ?? e?.target?.value ?? "")}
         >
-          <s-option value="">{shopify.i18n.translate("selectReward")}</s-option>
+          <s-option value="">{selectLabel}</s-option>
           {rewards.map((r) => {
             const canAfford = r.pointsCost <= balance;
             return (
               <s-option key={r.id} value={r.id} disabled={!canAfford}>
-                {r.name} — {getDiscountLabel(r)} ({r.pointsCost} {shopify.i18n.translate("points")}{!canAfford ? ` — ${shopify.i18n.translate("notEnoughPoints")}` : ""})
+                {r.name} — {getDiscountLabel(r)} ({r.pointsCost} {pointsLabel}{!canAfford ? ` — ${notEnoughLabel}` : ""})
               </s-option>
             );
           })}
@@ -145,7 +152,7 @@ export default function RewardSelect({
             disabled={!selectedRewardId || isApplying || (selectedReward !== null && selectedReward.pointsCost > balance)}
             onClick={handleApply}
           >
-            {shopify.i18n.translate("applyReward")}
+            {applyLabel}
           </s-button>
         )}
         {appliedCode && (
@@ -155,7 +162,7 @@ export default function RewardSelect({
             loading={isCancelling}
             onClick={handleCancel}
           >
-            {shopify.i18n.translate("cancelReward")}
+            {cancelLabel}
           </s-button>
         )}
       </s-grid>

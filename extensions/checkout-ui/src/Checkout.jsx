@@ -157,17 +157,25 @@ function Extension() {
     freeLineIdsRef.current.push({ id: lineId, quantity });
   };
 
+  /** @type {Record<string, any>} */
+  const s = shopify.settings?.current || {};
+  const t = (key, fallback) => shopify.i18n.translate(key) || fallback;
+
+  const titleText = s.loyalty_program_title || t("loyaltyProgram", "Programme de fidélité");
+  const balanceLabel = s.balance_label || t("balance", "Balance:");
+  const pointsLabel = s.points_label || t("points", "Points");
+
   return (
     <s-grid gap="base">
-      <s-text type="strong">{shopify.i18n.translate("loyaltyProgram")}</s-text>
+      <s-text type="strong">{titleText}</s-text>
       <s-box>
         <s-stack gap="base">
           <s-stack gap="small-100">
             <s-text>
-              {shopify.i18n.translate("balance")}
+              {balanceLabel}
               <s-text tone="info">
                 {" "}
-                {balance} {shopify.i18n.translate("points")}
+                {balance} {pointsLabel}
               </s-text>
             </s-text>
           </s-stack>
@@ -180,6 +188,7 @@ function Extension() {
                 balance={balance}
                 setBalance={setBalance}
                 applyDiscountCodeChange={applyDiscountCodeChange}
+                settings={s}
               />
               <s-divider />
               <ChangePointsToItem
@@ -187,6 +196,7 @@ function Extension() {
                 balance={balance}
                 setBalance={setBalance}
                 registerFreeLineId={registerFreeLineId}
+                settings={s}
               />
             </s-stack>
           )}

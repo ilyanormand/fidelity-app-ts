@@ -5,7 +5,7 @@ import { fetchRewardProducts, parseFreeItemsAttribute, RewardProduct } from "./u
 
 const APP_BACKEND_URL = "https://staging.fwn-tech.com";
 
-export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId }) {
+export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId, settings: s = {} }) {
   const [rewards, setRewards] = useState<RewardProduct[]>([]);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -120,11 +120,11 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
     }
   }, [balance, shopify, applyCartLinesChange, setBalance]);
 
+  const titleText = s.points_to_item_title || shopify.i18n.translate("pointsToItem");
+
   return (
     <s-stack gap="base">
-      <s-text type="strong">
-        {shopify.i18n.translate("pointsToItem")}
-      </s-text>
+      <s-text type="strong">{titleText}</s-text>
 
       {validationError && (
         <s-banner tone="critical">
@@ -142,6 +142,7 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
               balance={balance}
               isRedeeming={redeemingId === reward.id}
               shopify={shopify}
+              settings={s}
             />
           ))}
         </s-stack>
@@ -156,15 +157,19 @@ function RewardOffer({
   balance,
   isRedeeming,
   shopify,
+  settings: s = {},
 }: {
   reward: RewardProduct;
   onRedeem: (r: RewardProduct) => void;
   balance: number;
   isRedeeming: boolean;
   shopify: any;
+  settings?: Record<string, any>;
 }) {
   const { shopifyProductTitle: title, pointsCost, shopifyProductImageUrl: imageUrl } = reward;
   const canAfford = balance >= pointsCost;
+  const pointsLabel = s.points_label || shopify?.i18n?.translate("points") || "points";
+  const redeemLabel = s.redeem_button || shopify?.i18n?.translate("redeem") || "Échanger";
 
   return (
     <s-stack gap="small-200">
@@ -184,7 +189,7 @@ function RewardOffer({
 
         <s-stack gap="none">
           <s-text type="strong">{title}</s-text>
-          <s-text color="subdued">{pointsCost} points</s-text>
+          <s-text color="subdued">{pointsCost} {pointsLabel}</s-text>
         </s-stack>
 
         {isRedeeming ? (
@@ -195,7 +200,7 @@ function RewardOffer({
             disabled={!canAfford}
             onClick={() => onRedeem(reward)}
           >
-            {shopify?.i18n?.translate("redeem") || "Échanger"}
+            {redeemLabel}
           </s-button>
         )}
       </s-grid>

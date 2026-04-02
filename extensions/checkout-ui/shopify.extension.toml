@@ -45,13 +45,105 @@ namespace = "loyalty"
 key = "points_balance"
 owner_type = "customer"
 
-# Defines settings that will be collected from merchants installing
-# your extension. Learn more:
-# https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration#settings-definition
+[extensions.settings]
 
-# [extensions.settings]
-# [[extensions.settings.fields]]
-# key = "banner_title"
-# type = "single_line_text_field"
-# name = "Banner title"
-# description = "Enter a title for the banner"
+# ── General ──
+[[extensions.settings.fields]]
+key = "loyalty_program_title"
+type = "single_line_text_field"
+name = "Loyalty program title"
+description = "Main heading shown at the top of the loyalty block"
+
+[[extensions.settings.fields]]
+key = "balance_label"
+type = "single_line_text_field"
+name = "Balance label"
+description = "Label shown before the points number (e.g. 'Balance:')"
+
+[[extensions.settings.fields]]
+key = "points_label"
+type = "single_line_text_field"
+name = "Points unit"
+description = "Word for points (e.g. 'Points', 'pts')"
+
+# ── Login ──
+[[extensions.settings.fields]]
+key = "login_message"
+type = "single_line_text_field"
+name = "Login message"
+description = "Text shown when customer is not logged in"
+
+[[extensions.settings.fields]]
+key = "login_button"
+type = "single_line_text_field"
+name = "Login button"
+description = "Login button label"
+
+# ── Reward select ──
+[[extensions.settings.fields]]
+key = "select_reward_label"
+type = "single_line_text_field"
+name = "Select reward label"
+description = "Heading and placeholder for the reward dropdown"
+
+[[extensions.settings.fields]]
+key = "apply_reward_button"
+type = "single_line_text_field"
+name = "Apply reward button"
+description = "Button to apply the selected reward"
+
+[[extensions.settings.fields]]
+key = "cancel_reward_button"
+type = "single_line_text_field"
+name = "Cancel reward button"
+description = "Button to cancel an applied reward"
+
+[[extensions.settings.fields]]
+key = "reward_applied_text"
+type = "single_line_text_field"
+name = "Reward applied text"
+description = "Banner text shown when a reward has been applied"
+
+[[extensions.settings.fields]]
+key = "loading_rewards_text"
+type = "single_line_text_field"
+name = "Loading rewards text"
+description = "Text while rewards are loading"
+
+[[extensions.settings.fields]]
+key = "no_rewards_text"
+type = "single_line_text_field"
+name = "No rewards text"
+description = "Text when no rewards are available"
+
+[[extensions.settings.fields]]
+key = "not_enough_points_text"
+type = "single_line_text_field"
+name = "Not enough points text"
+description = "Suffix when a reward costs more than the balance"
+
+# ── Points to Item ──
+[[extensions.settings.fields]]
+key = "points_to_item_title"
+type = "single_line_text_field"
+name = "Points to item title"
+description = "Heading for the product exchange section"
+
+[[extensions.settings.fields]]
+key = "redeem_button"
+type = "single_line_text_field"
+name = "Redeem product button"
+description = "Button label to redeem a free product"
+
+# ── Earn Points Banner ──
+[[extensions.settings.fields]]
+key = "earn_points_title"
+type = "single_line_text_field"
+name = "Earn points title"
+description = "Banner title — use {{points}} as placeholder for the number"
+
+[[extensions.settings.fields]]
+key = "earn_points_description"
+type = "multi_line_text_field"
+name = "Earn points description"
+description = "Informative text below the earn-points title"
