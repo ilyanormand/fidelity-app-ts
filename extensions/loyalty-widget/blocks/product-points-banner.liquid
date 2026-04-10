@@ -54,7 +54,8 @@
         <p class="ppb-description" id="ppb-description-{{ product.id }}">
           Chargement...
         </p>
-      {% else %}
+      {% endif %}
+      {% unless customer %}
         <div class="ppb-actions">
           <a
             href="/account/login?return_url={{ request.path | url_encode }}"
@@ -66,7 +67,7 @@
             {{ block.settings.register_link_text }}
           </a>
         </div>
-      {% endif %}
+      {% endunless %}
     </div>
 
   </div>

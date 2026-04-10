@@ -29,7 +29,7 @@
     "description": "Les points de fidélité vous permettent d'obtenir des récompenses pour vos futurs achats. Le nombre final de points accordés peut différer si des remises supplémentaires sont appliquées."
   },
   "errors": {
-    "joinAccount": "Vous devez vous connecter pour utiliser les points",
+    "joinAccount": "Vous devez vous connecter pour utiliser vos points",
     "errorPointsQuantity": "Erreur de quantité de points",
     "notificationInputMoreZero": "Veuillez saisir un score supérieur à 0.",
     "errorApplyPoints": "Les points n'ont pas pu être appliqués. Veuillez réessayer.",

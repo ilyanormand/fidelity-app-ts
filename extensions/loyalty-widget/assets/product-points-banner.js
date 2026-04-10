@@ -1,30 +1,30 @@
 (async function () {
-  const banners = document.querySelectorAll(
-    '.ppb-wrapper[data-customer-logged-in="true"]'
-  );
+  const banners = document.querySelectorAll('.ppb-wrapper');
 
   if (!banners.length) return;
 
-  // Fetch customer balance and rewards once — these don't change on cart update
+  const isLoggedIn = banners[0].dataset.customerLoggedIn === "true";
+
+  if (!isLoggedIn) return;
+
   let customerBalance = 0;
   let rewards = [];
 
   try {
-    const [customerRes, rewardsRes] = await Promise.all([
-      fetch("/apps/loyalty/customer", {
-        headers: { "ngrok-skip-browser-warning": "true" },
-      }).then((r) => r.json()),
+    const results = await Promise.all([
       fetch("/apps/loyalty/rewards", {
         headers: { "ngrok-skip-browser-warning": "true" },
       }).then((r) => r.json()),
+      fetch("/apps/loyalty/customer", {
+        headers: { "ngrok-skip-browser-warning": "true" },
+      }).then((r) => r.json()),
     ]);
-
-    customerBalance = customerRes?.customer?.currentBalance || 0;
-    rewards = (rewardsRes?.rewards || []).sort(
+    rewards = (results[0]?.rewards || []).sort(
       (a, b) => a.pointsCost - b.pointsCost
     );
+    customerBalance = results[1]?.customer?.currentBalance || 0;
   } catch (e) {
-    console.error("[PPB] Error fetching customer/rewards:", e);
+    console.error("[PPB] Error fetching data:", e);
     return;
   }
 
@@ -48,11 +48,22 @@
 
       if (!progressFill || !description) return;
 
-      // Points earned from current cart + this product
-      const cartEarnedPoints = cartPoints + productPoints;
+      // Cart points + existing customer balance = total points after purchase
+      const cartEarnedPoints = cartPoints + customerBalance;
 
-      // Next reward based on the customer's current account balance
-      const nextReward = rewards.find((r) => r.pointsCost > customerBalance);
+      // Hide progress bar and description if user has no points at all
+      if (cartEarnedPoints === 0) {
+        progressFill.parentElement.style.display = "none";
+        description.style.display = "none";
+        return;
+      }
+
+      // Restore visibility
+      progressFill.parentElement.style.display = "";
+      description.style.display = "";
+
+      // Next reward based on total points after purchase
+      const nextReward = rewards.find((r) => r.pointsCost > cartEarnedPoints);
 
       if (!nextReward) {
         description.textContent =
@@ -61,9 +72,9 @@
         return;
       }
 
-      // Progress bar: customer's current balance toward next reward
+      // Progress bar reflects total points after purchase toward the next reward
       const progress = Math.min(
-        Math.round((customerBalance / nextReward.pointsCost) * 100),
+        Math.round((cartEarnedPoints / nextReward.pointsCost) * 100),
         100
       );
       progressFill.style.width = `${progress}%`;

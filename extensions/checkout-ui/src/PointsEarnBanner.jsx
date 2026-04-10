@@ -24,13 +24,12 @@ function PointsEarnBanner() {
 
   return (
     <s-box padding="base" borderRadius="base" background="subdued">
-      <s-stack direction="inline" gap="base">
-        <s-icon type="info" />
-        <s-stack direction="block" gap="base">
-          <s-text type="strong">{titleText}</s-text>
+      <s-details defaultOpen>
+        <s-summary>{titleText}</s-summary>
+        <s-box padding="small-200 none none none">
           <s-text>{descText}</s-text>
-        </s-stack>
-      </s-stack>
+        </s-box>
+      </s-details>
     </s-box>
   );
 }
