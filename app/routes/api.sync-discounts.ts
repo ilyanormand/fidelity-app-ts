@@ -2,6 +2,9 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { createLoyaltyDiscount } from "../utils/createShopifyDiscount.server";
+import { createLogger } from "../utils/logger.server";
+
+const log = createLogger("api:sync-discounts");
 
 /**
  * POST /api/sync-discounts
@@ -19,9 +22,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const body = await request.json().catch(() => ({}));
   const { customerId } = body;
+  const done = log.request("POST", { customerId: customerId || "all" });
 
   try {
-    // Find all redemptions that need syncing
     const redemptions = await prisma.redemption.findMany({
       where: {
         ...(customerId && { customerId }),
@@ -34,13 +37,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       orderBy: { createdAt: "desc" },
     });
 
+    log.info(`Found ${redemptions.length} redemptions to check`);
+
     if (redemptions.length === 0) {
-      return Response.json({
-        success: true,
-        message: "No redemptions found to sync",
-        synced: 0,
-        failed: 0,
-      });
+      done(200, "nothing to sync");
+      return Response.json({ success: true, message: "No redemptions found to sync", synced: 0, failed: 0 });
     }
 
     // Check which codes already exist in Shopify
@@ -147,6 +148,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
+    log.success(`Sync done: ${synced} created, ${failed} failed, ${existingCodes.size} already existed`);
+    done(200, `synced=${synced} failed=${failed} existed=${existingCodes.size}`);
     return Response.json({
       success: true,
       message: `Synced ${synced} discount codes, ${failed} failed, ${existingCodes.size} already existed.`,
@@ -157,7 +160,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       results,
     });
   } catch (error) {
-    console.error("Sync discounts error:", error);
+    log.error("Sync discounts error:", error);
+    done(500);
     return Response.json(
       { success: false, error: "Failed to sync discounts" },
       { status: 500 }

@@ -445,6 +445,131 @@
       return originalFetch(...args);
     };
 
+    // ─── CHECKOUT ABANDONMENT CLEANUP ────────────────────────────────────────
+    // Removes ONLY the free-product quantity from the cart, preserving any
+    // units the customer added themselves and is willing to pay for.
+    // Uses `_loyalty_free_items` cart attribute which stores per-variant
+    // redeemed quantities.
+
+    async function cleanupCheckoutAbandonment() {
+      var path = window.location.pathname;
+      if (
+        path.startsWith('/checkouts') ||
+        path.startsWith('/orders') ||
+        path.includes('/thank_you')
+      ) return;
+
+      if (window.__loyaltyCleanupRan) return;
+      window.__loyaltyCleanupRan = true;
+
+      var cart;
+      try {
+        cart = await originalFetch('/cart.js').then(function (r) { return r.json(); });
+      } catch (e) { return; }
+
+      if (!cart.items || !cart.items.length) return;
+
+      var freeItemsRaw = (cart.attributes && cart.attributes['_loyalty_free_items']) || '';
+      var pointsSpentRaw = (cart.attributes && cart.attributes['_loyalty_points_spent']) || '';
+
+      if (!freeItemsRaw && !pointsSpentRaw) return;
+
+      // Parse _loyalty_free_items → map of numericVariantId → freeQuantity
+      var freeQtyMap = {};
+      if (freeItemsRaw) {
+        try {
+          var parsed = JSON.parse(freeItemsRaw);
+          if (typeof parsed === 'object' && !Array.isArray(parsed) && parsed !== null) {
+            Object.keys(parsed).forEach(function (gid) {
+              var numId = String(gid).split('/').pop();
+              var val = parsed[gid];
+              var qty = (typeof val === 'object' && val !== null)
+                ? (val.quantity || 1)
+                : (typeof val === 'number' ? val : 1);
+              if (numId && qty > 0) freeQtyMap[numId] = qty;
+            });
+          } else if (Array.isArray(parsed)) {
+            parsed.forEach(function (gid) {
+              var numId = String(gid).split('/').pop();
+              if (numId) freeQtyMap[numId] = 1;
+            });
+          }
+        } catch (e) {}
+      }
+
+      // Subtract only the free quantity from each matching cart item
+      var updates = {};
+      var hasChanges = false;
+      for (var i = 0; i < cart.items.length; i++) {
+        var item = cart.items[i];
+        var freeQty = freeQtyMap[String(item.variant_id)];
+        if (!freeQty || freeQty <= 0) continue;
+
+        var newQty = Math.max(0, item.quantity - freeQty);
+        updates[item.key] = newQty;
+        hasChanges = true;
+        console.log('[LoyaltyGuard] Item ' + item.variant_id +
+          ': qty ' + item.quantity + ' -> ' + newQty +
+          ' (free=' + freeQty + ')');
+      }
+
+      if (hasChanges) {
+        try {
+          await originalFetch('/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates: updates }),
+          });
+          console.log('[LoyaltyGuard] Subtracted free quantities from cart.');
+        } catch (e) {
+          console.warn('[LoyaltyGuard] Failed to update cart:', e);
+        }
+
+        // Rollback points in DB: refund the points that were deducted at confirm time
+        if (freeItemsRaw) {
+          try {
+            await originalFetch('/apps/loyalty/rollback-product-redemption', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ freeItems: JSON.parse(freeItemsRaw) }),
+            });
+            console.log('[LoyaltyGuard] Points rollback sent to server.');
+          } catch (e) {
+            console.warn('[LoyaltyGuard] Points rollback failed:', e);
+          }
+        }
+      }
+
+      // Clear loyalty attributes
+      if (freeItemsRaw || pointsSpentRaw) {
+        try {
+          await originalFetch('/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attributes: {
+                '_loyalty_free_items': '',
+                '_loyalty_points_spent': '',
+              },
+            }),
+          });
+        } catch (e) {}
+      }
+
+      localStorage.removeItem(REWARD_ITEMS_CACHE_KEY);
+
+      if (hasChanges) {
+        window.location.reload();
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', cleanupCheckoutAbandonment);
+    } else {
+      cleanupCheckoutAbandonment();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function (method, url) {
       this._url = url;

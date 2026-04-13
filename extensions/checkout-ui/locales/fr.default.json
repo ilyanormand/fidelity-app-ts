@@ -16,8 +16,20 @@
     "login": "Se connecter",
     "cancelRedemption": "Annuler la réduction"
   },
+  "selectReward": "Choisissez une récompense",
+  "noRewardsAvailable": "Aucune récompense disponible avec votre solde actuel",
+  "noRewardsConfigured": "Aucune récompense configurée pour ce programme",
+  "notEnoughPoints": "points insuffisants",
+  "applyReward": "Appliquer la récompense",
+  "cancelReward": "Annuler la récompense",
+  "rewardApplied": "Récompense appliquée",
+  "loadingRewards": "Chargement des récompenses...",
+  "earnPoints": {
+    "title": "Validez cette commande pour gagner jusqu'à {{points}} points",
+    "description": "Les points de fidélité vous permettent d'obtenir des récompenses pour vos futurs achats. Le nombre final de points accordés peut différer si des remises supplémentaires sont appliquées."
+  },
   "errors": {
-    "joinAccount": "Vous devez vous connecter pour utiliser les points",
+    "joinAccount": "Vous devez vous connecter pour utiliser vos points",
     "errorPointsQuantity": "Erreur de quantité de points",
     "notificationInputMoreZero": "Veuillez saisir un score supérieur à 0.",
     "errorApplyPoints": "Les points n'ont pas pu être appliqués. Veuillez réessayer.",

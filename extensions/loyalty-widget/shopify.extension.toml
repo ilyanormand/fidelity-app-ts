@@ -14,3 +14,8 @@ file = "blocks/loyalty-widget.liquid"
 type = "loyalty-guard"
 name = "Loyalty Reward Guard"
 file = "blocks/loyalty-guard.liquid"
+
+[[blocks]]
+type = "product-points-banner"
+name = "Product Points Banner"
+file = "blocks/product-points-banner.liquid"

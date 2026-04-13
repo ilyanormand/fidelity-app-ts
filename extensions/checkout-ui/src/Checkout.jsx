@@ -2,13 +2,14 @@ import "@shopify/ui-extensions/preact";
 import { render } from "preact";
 import Login from "./login";
 import ChangePointsToItem from "./changePointsToItem";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import {
   useAppMetafields,
   useApplyCartLinesChange,
+  useApplyDiscountCodeChange,
 } from "@shopify/ui-extensions/checkout/preact";
-import { getBalanceFromMetafields, validataAllDataOfLoyalty } from "./utils";
-import ChangePointsToDiscount from "./changePointsToDiscount";
+import { getBalanceFromMetafields, validataAllDataOfLoyalty, parseFreeItemsAttribute } from "./utils";
+import RewardSelect from "./RewardSelect";
 
 export default async () => {
   render(<Extension />, document.body);
@@ -22,136 +23,182 @@ function Extension() {
       </s-banner>
     );
   }
-  //Check authorization
+
   if (!shopify.buyerIdentity?.email?.value) {
     return <Login shopify={shopify} />;
   }
 
-  //Get logic to calculate discount
-  //For example
-  const POINTS_PER_EURO = 100;
-
-  // Get metafield balance
   const initialBalanceValue = getBalanceFromMetafields(useAppMetafields);
   const [balance, setBalance] = useState(initialBalanceValue);
+  const applyDiscountCodeChange = useApplyDiscountCodeChange();
+  const applyCartLinesChange = useApplyCartLinesChange();
 
-  // State for applied discount points
-  const [appliedDiscountPoints, setAppliedDiscountPoints] = useState(0);
+  const shopDomain = shopify.shop?.myshopifyDomain ?? "";
 
-  //Another state for errors
-  const [error, setError] = useState("");
+  // Ref to track free item line IDs added during THIS checkout session.
+  // ChangePointsToItem will push to this via the callback.
+  const freeLineIdsRef = useRef([]);
+  // Track whether the buyer completed checkout (order placed).
+  const orderCompletedRef = useRef(false);
 
-  //Count balance from attributes (including pointsToRedeem)
+  // ── CLEANUP ON MOUNT: remove leftover free items from a previous session ──
+  useEffect(() => {
+    async function cleanupLeftovers() {
+      const cartLines = shopify.lines?.current || [];
+      const attrsArray = shopify.attributes?.current || [];
+      const attrsMap = {};
+      attrsArray.forEach((a) => { if (a?.key) attrsMap[a.key] = a.value; });
+      const freeItemsRaw = attrsMap["_loyalty_free_items"];
+      if (!freeItemsRaw) return;
+
+      const freeItemsMap = parseFreeItemsAttribute(freeItemsRaw);
+      const variantIds = Object.keys(freeItemsMap);
+      if (!variantIds.length) return;
+
+      let cleaned = 0;
+      for (const line of cartLines) {
+        const vid = line.merchandise?.id;
+        if (!vid || !variantIds.includes(vid)) continue;
+
+        const freeQty = freeItemsMap[vid]?.quantity || 0;
+        if (freeQty <= 0) continue;
+
+        try {
+          if (freeQty >= line.quantity) {
+            await applyCartLinesChange({
+              type: "removeCartLine",
+              id: line.id,
+              quantity: line.quantity,
+            });
+          } else {
+            await applyCartLinesChange({
+              type: "updateCartLine",
+              id: line.id,
+              quantity: line.quantity - freeQty,
+            });
+          }
+          cleaned++;
+        } catch (e) {
+          console.warn("[Checkout] Failed to clean leftover free item:", e);
+        }
+      }
+
+      if (cleaned > 0) {
+        await shopify.applyAttributeChange({
+          type: "updateAttribute",
+          key: "_loyalty_free_items",
+          value: "",
+        });
+        await shopify.applyAttributeChange({
+          type: "updateAttribute",
+          key: "_loyalty_points_spent",
+          value: "",
+        });
+        console.log("[Checkout] Cleaned up", cleaned, "leftover free item(s).");
+      }
+    }
+    cleanupLeftovers();
+  }, []);
+
+  // ── CLEANUP ON UNMOUNT: user leaving checkout without completing order ─────
+  useEffect(() => {
+    return () => {
+      if (orderCompletedRef.current) return;
+
+      const lineIds = freeLineIdsRef.current;
+      if (!lineIds.length) return;
+
+      // Fire-and-forget: remove all free items we added this session
+      for (const { id, quantity } of lineIds) {
+        applyCartLinesChange({
+          type: "removeCartLine",
+          id,
+          quantity,
+        }).catch(() => {});
+      }
+
+      // Clear attributes
+      shopify.applyAttributeChange({
+        type: "updateAttribute",
+        key: "_loyalty_free_items",
+        value: "",
+      }).catch(() => {});
+      shopify.applyAttributeChange({
+        type: "updateAttribute",
+        key: "_loyalty_points_spent",
+        value: "",
+      }).catch(() => {});
+
+      console.log("[Checkout] Unmount cleanup: removing", lineIds.length, "free item(s).");
+    };
+  }, []);
+
+  // ── DETECT ORDER COMPLETED ─────────────────────────────────────────────────
+  useEffect(() => {
+    // `shopify.buyerJourney` exposes the completed state.
+    // When the buyer submits the order, set the flag so we skip cleanup.
+    const unsubscribe = shopify.buyerJourney?.completed?.subscribe((completed) => {
+      if (completed) {
+        orderCompletedRef.current = true;
+      }
+    });
+    return () => { if (typeof unsubscribe === "function") unsubscribe(); };
+  }, []);
+
+  // Balance sync
   useEffect(() => {
     if (initialBalanceValue !== undefined && initialBalanceValue !== null) {
-      validataAllDataOfLoyalty(
-        shopify,
-        setAppliedDiscountPoints,
-        initialBalanceValue,
-        setBalance,
-      );
+      validataAllDataOfLoyalty(shopify, () => {}, initialBalanceValue, setBalance);
     }
   }, [initialBalanceValue, shopify?.attributes?.current]);
 
+  // Callback for ChangePointsToItem to register added free item line IDs
+  const registerFreeLineId = (lineId, quantity) => {
+    freeLineIdsRef.current.push({ id: lineId, quantity });
+  };
+
+  /** @type {Record<string, any>} */
+  const s = shopify.settings?.current || {};
+  const t = (key, fallback) => shopify.i18n.translate(key) || fallback;
+
+  const titleText = s.loyalty_program_title || t("loyaltyProgram", "Programme de fidélité");
+  const balanceLabel = s.balance_label || t("balance", "Balance:");
+  const pointsLabel = s.points_label || t("points", "Points");
+
   return (
     <s-grid gap="base">
-      <s-text type="strong">{shopify.i18n.translate("loyaltyProgram")}</s-text>
+      <s-text type="strong">{titleText}</s-text>
       <s-box>
         <s-stack gap="base">
           <s-stack gap="small-100">
             <s-text>
-              {shopify.i18n.translate("balance")}
+              {balanceLabel}
               <s-text tone="info">
                 {" "}
-                {balance} {shopify.i18n.translate("points")}
+                {balance} {pointsLabel}
               </s-text>
             </s-text>
           </s-stack>
           <s-divider />
           {balance > 0 && (
             <s-stack gap="base">
-              <ChangePointsToDiscount
+              <RewardSelect
                 shopify={shopify}
+                shopDomain={shopDomain}
                 balance={balance}
                 setBalance={setBalance}
-                setError={setError}
-                error={error}
-                POINTS_PER_EURO={POINTS_PER_EURO}
-                setAppliedDiscountPoints={setAppliedDiscountPoints}
-                appliedDiscountPoints={appliedDiscountPoints}
+                applyDiscountCodeChange={applyDiscountCodeChange}
+                settings={s}
               />
               <s-divider />
               <ChangePointsToItem
                 shopify={shopify}
                 balance={balance}
                 setBalance={setBalance}
+                registerFreeLineId={registerFreeLineId}
+                settings={s}
               />
             </s-stack>
-
-            // <s-stack gap="base">
-            //   <s-text tone="auto" type="strong">
-            //     {shopify.i18n.translate("changePointsForDiscount")}
-            //   </s-text>
-            //   {textNotEnoughPoints && (
-            //     <s-banner tone="critical">
-            //       <s-text>
-            //         {shopify.i18n.translate("errors.pointsNotEnough")}
-            //       </s-text>
-            //     </s-banner>
-            //   )}
-            //   <s-number-field
-            //     label={shopify.i18n.translate("pointsToRedeem")}
-            //     min={0}
-            //     value={pointsToRedeem}
-            //     disabled={isApplying}
-            //     onInput={(event) => {
-            //       const nextValue =
-            //         (event && event["detail"] && event["detail"]["value"]) ||
-            //         (event && event["target"] && event["target"]["value"]) ||
-            //         "";
-            //       setPointsToRedeem(nextValue);
-            //     }}
-            //   ></s-number-field>
-
-            //   <s-text tone="neutral" type="small">
-            //     {shopify.i18n.translate("expectedDiscount")}:{" "}
-            //     {Math.floor(numericPoints / POINTS_PER_EURO)} € (
-            //     {POINTS_PER_EURO} {shopify.i18n.translate("points")} = 1 €)
-            //   </s-text>
-            //   {error && (
-            //     <s-banner tone="critical">
-            //       <s-text>{error}</s-text>
-            //     </s-banner>
-            //   )}
-            //   <s-grid gridTemplateColumns="170px 170px">
-            //     <s-button
-            //       variant="primary"
-            //       tone="neutral"
-            //       loading={isApplying}
-            //       disabled={hasInvalidInput || numericPoints === 0}
-            //       onClick={handleApplyPoints}
-            //     >
-            //       {shopify.i18n.translate("applyPointsButton")}
-            //     </s-button>
-            //     <s-button
-            //       variant="primary"
-            //       tone="neutral"
-            //       loading={isCancelling}
-            //       disabled={appliedDiscountPoints === 0}
-            //       onClick={handleCancelRedemption}
-            //     >
-            //       {shopify.i18n.translate("components.cancelRedemption")}
-            //     </s-button>
-            //   </s-grid>
-
-            //   <s-divider />
-            //   <ChangePointsToItem
-            //     shopify={shopify}
-            //     freeItems={freeItems}
-            //     balance={balance}
-            //     setBalance={setBalance}
-            //   />
-            // </s-stack>
           )}
         </s-stack>
       </s-box>

@@ -2,12 +2,16 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { randomUUID } from "crypto";
 import { serialize } from "../utils/serialize";
+import { createLogger } from "../utils/logger.server";
+
+const log = createLogger("api:redemptions");
 
 // GET /api/redemptions - Get redemptions
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const customerId = url.searchParams.get("customerId");
   const limit = parseInt(url.searchParams.get("limit") || "50");
+  const done = log.request("GET", { customerId, limit });
 
   try {
     const redemptions = await prisma.redemption.findMany({
@@ -33,16 +37,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       _count: true,
     });
 
+    done(200, `${redemptions.length} redemptions, totalPts=${totals._sum.pointsSpent || 0}`);
     return Response.json({
       redemptions,
       count: redemptions.length,
-      totals: {
-        pointsSpent: totals._sum.pointsSpent || 0,
-        count: totals._count,
-      },
+      totals: { pointsSpent: totals._sum.pointsSpent || 0, count: totals._count },
     });
   } catch (error) {
-    console.error("Error fetching redemptions:", error);
+    log.error("Error fetching redemptions:", error);
+    done(500);
     return Response.json({ error: "Failed to fetch redemptions" }, { status: 500 });
   }
 };
@@ -56,8 +59,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (method === "POST") {
       const body = await request.json();
       const { customerId, rewardId, pointsSpent, shopifyDiscountCode } = body;
+      const done = log.request("POST", { customerId, pointsSpent, rewardId });
 
       if (!customerId || !pointsSpent) {
+        done(400, "missing required fields");
         return Response.json(
           { error: "customerId and pointsSpent are required" },
           { status: 400 }
@@ -127,6 +132,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { redemption, updatedCustomer };
       });
 
+      log.success(`Redemption created: code=${discountCode} pts=${pointsSpent} newBalance=${result.updatedCustomer.currentBalance}`);
+      done(201, `code=${discountCode}`);
       return Response.json(
         {
           redemption: result.redemption,
@@ -141,6 +148,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (method === "DELETE") {
       const body = await request.json();
       const { id, refund = false } = body;
+      const done = log.request("DELETE", { id, refund });
 
       if (!id) {
         return Response.json({ error: "Redemption id is required" }, { status: 400 });
@@ -183,20 +191,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
         });
 
+        done(200, "deleted + refunded");
         return Response.json({ message: "Redemption deleted and points refunded" });
       } else {
-        // Just delete without refund
-        await prisma.redemption.delete({
-          where: { id },
-        });
-
+        await prisma.redemption.delete({ where: { id } });
+        done(200, "deleted no refund");
         return Response.json({ message: "Redemption deleted (no refund)" });
       }
     }
 
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   } catch (error) {
-    console.error("Redemption action error:", error);
+    log.error("Action error:", error);
     return Response.json({ error: "Action failed" }, { status: 500 });
   }
 };

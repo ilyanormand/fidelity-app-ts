@@ -1,5 +1,5 @@
 import prisma from "../db.server";
-import { syncBalanceToShopify } from "./metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
 
 export const importAllCustomers = async (
   admin: any,
@@ -93,12 +93,8 @@ export const importAllCustomers = async (
         const prismaBalance = prismaCustomer.currentBalance ?? 0;
 
         if (metafieldBalance !== prismaBalance) {
-          try {
-            await syncBalanceToShopify(admin, customer.id, prismaBalance);
-            metafieldsSynced++;
-          } catch (e) {
-            console.warn(`⚠️ Failed to sync metafield for ${customer.email || customer.id}:`, e);
-          }
+          await enqueueSyncBalance(customer.id, prismaBalance, shopId);
+          metafieldsSynced++;
         }
       }
 

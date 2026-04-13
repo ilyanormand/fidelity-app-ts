@@ -1,3 +1,15 @@
+{% assign excluded_tag = block.settings.excluded_tag | strip | downcase %}
+{% assign customer_has_excluded_tag = false %}
+{% if excluded_tag != "" and customer %}
+  {% for tag in customer.tags %}
+    {% assign tag_lower = tag | downcase %}
+    {% if tag_lower == excluded_tag %}
+      {% assign customer_has_excluded_tag = true %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{% unless customer_has_excluded_tag %}
 <div id="loyalty-spa-root" 
   class="{% if customer %}customer-logged-in{% else %}customer-not-logged-in{% endif %}"
   data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
@@ -22,37 +34,37 @@
     <div class="loyalty-navbar">
       <div class="loyalty-navbar-title">
         {% if customer %}
-          <p>{{ customer.first_name | default: 'Membre' }}!</p>
+          <p>{{ customer.first_name | default: 'Membre' }}</p>
         {% else %}
           <p>Invité</p>
         {% endif %}
       </div>
       <div class="loyalty-navbar-points">
-        <p id="loyalty-navbar-points">...</p>
+        <p id="loyalty-navbar-points" class="loyalty-points-display">...</p>
         <p>points</p>
       </div>
       <div class="loyalty-navbar-buttons">
         <button class="fidelity-nav-btn" data-page="my-program-content">
-          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.my_program' | t }}
+          <img src="{{ 'icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_my_program }}
         </button>
         <button class="fidelity-nav-btn" data-page="earn-points-content">
-          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.earn_points' | t }}
+          <img src="{{ 'icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_earn_points }}
         </button>
         <button class="fidelity-nav-btn" data-page="change_points-content">
           <img
-            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            src="{{ 'icon-change-points.svg' | asset_url }}"
             alt=""
             class="fidelity-nav-icon"
             width="32"
             height="32"
           >
-          {{ 'loyalty_widget.navbar.change_points' | t }}
+          {{ block.settings.nav_change_points }}
         </button>
         <button class="fidelity-nav-btn" data-page="my-rewards-content" id="my-rewards-nav-btn" style="display: none;">
-          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+          <img src="{{ 'icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_my_rewards }}
         </button>
       </div>
     </div>
@@ -66,54 +78,59 @@
           <span class="fidelity-burger-line"></span>
         </button>
         <div class="loyalty-navbar-title">
-          <p>Name person</p>
-          <p>Points: 100</p>
+          {% if customer %}
+            <p>{{ customer.first_name | default: block.settings.member_fallback_name }}</p>
+          {% else %}
+            <p>{{ block.settings.guest_name }}</p>
+          {% endif %}
+          <span id="loyalty-navbar-points-mobile" class="loyalty-points-display">...</span><span> {{ block.settings.points_label }}</span>
         </div>
       </div>
       <div class="fidelity-mobile-menu" id="mobile-menu">
         <button class="fidelity-nav-btn" data-page="my-program-content">
-          <img src="{{ '../assets/icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.my_program' | t }}
+          <img src="{{ 'icon-my-rewards.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_my_program }}
         </button>
         <button class="fidelity-nav-btn" data-page="earn-points-content">
-          <img src="{{ '../assets/icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.earn_points' | t }}
+          <img src="{{ 'icon-earn-points.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_earn_points }}
         </button>
         <button class="fidelity-nav-btn" data-page="change_points-content">
           <img
-            src="{{ '../assets/icon-change-points.svg' | asset_url }}"
+            src="{{ 'icon-change-points.svg' | asset_url }}"
             alt=""
             class="fidelity-nav-icon"
             width="32"
             height="32"
           >
-          {{ 'loyalty_widget.navbar.change_points' | t }}
+          {{ block.settings.nav_change_points }}
         </button>
         <button class="fidelity-nav-btn" data-page="my-rewards-content" id="my-rewards-mobile-btn" style="display: none;">
-          <img src="{{ '../assets/icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
-          {{ 'loyalty_widget.navbar.my_rewards' | t }}
+          <img src="{{ 'icon-my-program.svg' | asset_url }}" alt="" class="fidelity-nav-icon" width="32" height="32">
+          {{ block.settings.nav_my_rewards }}
         </button>
       </div>
     </div>
 
     <div id="loyalty-page-content">
       <div data="div-content" class="loyalty-page" id="my-program-content" style="display: block;">
-        {% render 'my-program-content' %}
+        {% render 'my-program-content', block: block %}
       </div>
       <div data="div-content" class="loyalty-page" id="earn-points-content" style="display: none;">
-        {% render 'earn-points-content' %}
+        {% render 'earn-points-content', block: block %}
       </div>
       <div data="div-content" class="loyalty-page" id="change_points-content" style="display: none;">
-        {% render 'change-points-content' %}
+        {% render 'change-points-content', block: block %}
       </div>
       <div data="div-content" class="loyalty-page" id="my-rewards-content" style="display: none;">
-        {% render 'my-rewards-content' %}
+        {% render 'my-rewards-content', block: block %}
       </div>
     </div>
   </div>
 </div>
+{% endunless %}
 
-  
+{% unless customer_has_excluded_tag %}
 <script>
   // Data of user available for make requests to API in all tabs
   window.loyaltyConfig = {
@@ -124,7 +141,10 @@
 
   // Fetch points balance
   (function() {
-    const pointsElement = document.getElementById('loyalty-navbar-points');
+    const pointsElements = document.querySelectorAll('.loyalty-points-display');
+    function setPoints(value) {
+      pointsElements.forEach(function(el) { el.textContent = value; });
+    }
     if (window.loyaltyConfig.customerId) {
         fetch('/apps/loyalty/customer', {
             headers: {
@@ -134,21 +154,20 @@
         .then(response => response.json())
         .then(data => {
             if (data.success && data.customer) {
-                pointsElement.textContent = data.customer.currentBalance || 0;
+                setPoints(data.customer.currentBalance || 0);
             } else {
-                pointsElement.textContent = 0;
+                setPoints(0);
             }
         })
         .catch(err => {
             console.error('Error fetching points:', err);
-            pointsElement.textContent = 0;
+            setPoints(0);
         });
     } else {
-        pointsElement.textContent = 0;
+        setPoints(0);
     }
   })();
 </script>
-
 <script src="{{ 'loader-my-rewards.js' | asset_url }}" defer></script>
 <script src="{{ 'loader-change-points.js' | asset_url }}" defer></script>
 <script src="{{ 'loyalty-app.js' | asset_url }}" defer></script>
@@ -156,12 +175,20 @@
 <script src="{{ 'loader-my-program.js' | asset_url }}" defer></script>
 
 <link href="{{ 'styles-loyalty-app.css' | asset_url }}" rel="stylesheet">
+{% endunless %}
 
 {% schema %}
 {
   "name": "Loyalty Widget",
   "target": "section",
   "settings": [
+    {
+      "type": "text",
+      "id": "excluded_tag",
+      "label": "Hide widget for customers with tag",
+      "placeholder": "e.g. wholesale",
+      "info": "Customers who have this tag will not see the loyalty widget. Leave empty to show for everyone."
+    },
     {
       "type": "header",
       "content": "Background Image"
@@ -231,6 +258,152 @@
       "id": "background_repeat",
       "label": "Repeat Background",
       "default": false
+    },
+    {
+      "type": "header",
+      "content": "Navigation"
+    },
+    {
+      "type": "text",
+      "id": "nav_my_program",
+      "label": "Onglet — Mon programme",
+      "default": "Mon programme"
+    },
+    {
+      "type": "text",
+      "id": "nav_earn_points",
+      "label": "Onglet — Gagner des points",
+      "default": "Gagner des points"
+    },
+    {
+      "type": "text",
+      "id": "nav_change_points",
+      "label": "Onglet — Échanger mes points",
+      "default": "Échanger mes points"
+    },
+    {
+      "type": "text",
+      "id": "nav_my_rewards",
+      "label": "Onglet — Mes récompenses",
+      "default": "Mes récompenses"
+    },
+    {
+      "type": "text",
+      "id": "guest_name",
+      "label": "Nom affiché pour les visiteurs non connectés",
+      "default": "Invité"
+    },
+    {
+      "type": "text",
+      "id": "member_fallback_name",
+      "label": "Nom de repli pour les membres sans prénom",
+      "default": "Membre"
+    },
+    {
+      "type": "text",
+      "id": "points_label",
+      "label": "Libellé des points",
+      "default": "points"
+    },
+    {
+      "type": "header",
+      "content": "Page — Mon Programme"
+    },
+    {
+      "type": "text",
+      "id": "my_program_title",
+      "label": "Titre",
+      "default": "Mon Programme de Fidélité"
+    },
+    {
+      "type": "text",
+      "id": "my_program_feature_1",
+      "label": "Caractéristique 1",
+      "default": "Gagnez des points à chaque achat ou mission"
+    },
+    {
+      "type": "text",
+      "id": "my_program_feature_2",
+      "label": "Caractéristique 2",
+      "default": "Échangez-les contre des réductions"
+    },
+    {
+      "type": "text",
+      "id": "my_program_feature_3",
+      "label": "Caractéristique 3",
+      "default": "Profitez de vos récompenses"
+    },
+    {
+      "type": "header",
+      "content": "Page — Gagner des points"
+    },
+    {
+      "type": "text",
+      "id": "earn_points_title",
+      "label": "Titre",
+      "default": "Comment gagner des points ?"
+    },
+    {
+      "type": "text",
+      "id": "earn_points_feature_1",
+      "label": "Caractéristique 1",
+      "default": "Gagner des points, c'est simple comme bonjour !"
+    },
+    {
+      "type": "text",
+      "id": "earn_points_feature_2",
+      "label": "Caractéristique 2",
+      "default": "Chaque euro dépensé = 1 point gagné automatiquement sur votre compte."
+    },
+    {
+      "type": "text",
+      "id": "earn_points_feature_3",
+      "label": "Caractéristique 3",
+      "default": "Et pour booster votre compteur, relevez les missions que vous trouverez ci dessous."
+    },
+    {
+      "type": "text",
+      "id": "earn_points_feature_4",
+      "label": "Caractéristique 4",
+      "default": "Plus vous jouez le jeu, plus vous cumulez de points!"
+    },
+    {
+      "type": "header",
+      "content": "Page — Échanger mes points"
+    },
+    {
+      "type": "text",
+      "id": "change_points_title",
+      "label": "Titre",
+      "default": "Échanger mes points"
+    },
+    {
+      "type": "textarea",
+      "id": "change_points_feature_1",
+      "label": "Texte d'introduction 1",
+      "default": "Chaque achat vous rapporte des points : transformez-les ensuite en bons d'achat ou réductions exclusives."
+    },
+    {
+      "type": "textarea",
+      "id": "change_points_feature_2",
+      "label": "Texte d'introduction 2",
+      "default": "Choisissez votre récompense, cliquez, et profitez-en dès votre prochaine commande"
+    },
+    {
+      "type": "header",
+      "content": "Page — Mes récompenses"
+    },
+    {
+      "type": "text",
+      "id": "my_rewards_title",
+      "label": "Titre",
+      "default": "Mes récompenses"
+    },
+    {
+      "type": "textarea",
+      "id": "my_rewards_feature_1",
+      "label": "Texte d'introduction",
+      "default": "En tant que membre, vous gagnez des points à chaque fois que vous faites des achats ou des missions. Échangez vos points contre des réductions valable sur vos prochaines commandes !"
     }
   ]
 }

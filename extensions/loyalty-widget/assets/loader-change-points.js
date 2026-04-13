@@ -101,6 +101,7 @@ function renderChangePointsRewards(rewards) {
           <button 
             class="fidelity-redeem-btn" 
             data-reward-id="${reward.id}"
+            data-name="${reward.name}"
             data-points="${reward.points}" 
             data-discount="${reward.discountAmount}"
             data-minimum="${reward.minimumCartValue || 0}"
@@ -197,44 +198,93 @@ function attachRedeemButtonHandlers() {
   const buttons = document.querySelectorAll(".fidelity-redeem-btn");
 
   buttons.forEach((button) => {
-    button.addEventListener("click", async (e) => {
+    button.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (button.classList.contains("fidelity-processing")) {
-        return;
-      }
+      if (button.classList.contains("fidelity-processing")) return;
 
-      // Double-check login status (should already be handled, but just in case)
       if (!isCustomerLoggedIn()) {
         redirectToLogin();
         return;
       }
 
       const rewardId = button.getAttribute("data-reward-id");
+      const rewardName = button.getAttribute("data-name") || "cette récompense";
+      const points = parseInt(button.getAttribute("data-points") || "0");
       const minimumCartValue = parseInt(button.getAttribute("data-minimum") || "0");
-      const originalText = button.textContent;
-      
-      button.textContent = "Chargement...";
-      button.disabled = true;
-      button.classList.add("fidelity-processing");
 
-      try {
-        const result = await redeemReward(rewardId, minimumCartValue);
-        showRewardModal(result.code, result.minimalBuy, result.imgUrl);
-        
-        // Refresh customer balance after redemption
-        if (window.loadCustomerBalance) {
-          window.loadCustomerBalance();
-        }
-      } catch (err) {
-        const errorMessage = err.message || "Une erreur s'est produite. Veuillez réessayer.";
-        alert(errorMessage);
-      } finally {
-        button.classList.remove("fidelity-processing");
-        button.textContent = originalText;
-        button.disabled = false;
-      }
+      showConfirmationModal(rewardId, rewardName, points, minimumCartValue, button);
     });
   });
+}
+
+function showConfirmationModal(rewardId, rewardName, points, minimumCartValue, button) {
+  let modal = document.getElementById("reward-confirm-modal");
+
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "reward-confirm-modal";
+    modal.className = "fidelity-reward-modal";
+    modal.innerHTML = `
+      <div class="fidelity-reward-modal-overlay"></div>
+      <div class="fidelity-reward-modal-content">
+        <p class="fidelity-confirm-text"></p>
+        <div class="fidelity-confirm-actions">
+          <button class="fidelity-modal-btn fidelity-confirm-yes">Confirmer</button>
+          <button class="fidelity-modal-btn fidelity-modal-btn--secondary fidelity-confirm-no">Annuler</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  modal.querySelector(".fidelity-confirm-text").textContent =
+    `Êtes-vous sûr d'échanger ${points} points" ?`;
+
+  modal.classList.add("fidelity-active");
+  document.body.style.overflow = "hidden";
+
+  const overlay = modal.querySelector(".fidelity-reward-modal-overlay");
+  const yesBtn = modal.querySelector(".fidelity-confirm-yes");
+  const noBtn = modal.querySelector(".fidelity-confirm-no");
+
+  // Clone buttons to remove any previous listeners
+  const newYesBtn = yesBtn.cloneNode(true);
+  const newNoBtn = noBtn.cloneNode(true);
+  yesBtn.parentNode.replaceChild(newYesBtn, yesBtn);
+  noBtn.parentNode.replaceChild(newNoBtn, noBtn);
+
+  function closeConfirm() {
+    modal.classList.remove("fidelity-active");
+    document.body.style.overflow = "";
+  }
+
+  overlay.onclick = closeConfirm;
+  newNoBtn.onclick = closeConfirm;
+
+  newYesBtn.onclick = async () => {
+    closeConfirm();
+
+    const originalText = button.textContent;
+    button.textContent = "Chargement...";
+    button.disabled = true;
+    button.classList.add("fidelity-processing");
+
+    try {
+      const result = await redeemReward(rewardId, minimumCartValue);
+      showRewardModal(result.code, result.minimalBuy, result.imgUrl);
+
+      if (window.loadCustomerBalance) {
+        window.loadCustomerBalance();
+      }
+    } catch (err) {
+      const errorMessage = err.message || "Une erreur s'est produite. Veuillez réessayer.";
+      alert(errorMessage);
+    } finally {
+      button.classList.remove("fidelity-processing");
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  };
 }
 
 // Helper function to check if customer is logged in

@@ -1,9 +1,9 @@
 <link href="{{ 'styles-my-rewards.css' | asset_url }}" rel="stylesheet">
 
 <div class="my-rewards-content">
-  <h3 class="my-rewards-title">{{ 'loyalty_widget.pages.my_rewards.title' | t }}</h3>
+  <h3 class="my-rewards-title">{{ block.settings.my_rewards_title }}</h3>
   <div class="my-rewards-features">
-    <p class="my-rewards-item">{{ 'loyalty_widget.pages.my_rewards.first_feature' | t }}</p>
+    <p class="my-rewards-item">{{ block.settings.my_rewards_feature_1 }}</p>
   </div>
   <div class="my-rewards-list" id="my-rewards-list">
     <div class="fidelity-my-reward-card">
@@ -11,4 +11,3 @@
     </div>
   </div>
 </div>
-

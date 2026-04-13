@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { authenticate } from "../../shopify.server";
+import prisma from "../../db.server";
 import {
   Card,
   DataTable,
@@ -34,54 +35,25 @@ interface LedgerEntry {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const shopId = session.shop;
   const customerId = params.id;
   const customer = await getDataCustomer(customerId || "");
 
-  // Check which discount codes have been used in Shopify
+  // Build usage map from our own ledger (written by orders/paid webhook instantly)
   const usedCodes = new Set<string>();
-  if (customer?.redemptions && customer.redemptions.length > 0) {
-    const codes = customer.redemptions
-      .map((r) => r.discountCode)
-      .filter((c): c is string => !!c);
-    const uniqueCodes = [...new Set(codes)];
-
-    if (uniqueCodes.length > 0) {
-      try {
-        const queryParts = uniqueCodes.map(
-          (code, i) => `
-          code_${i}: codeDiscountNodeByCode(code: "${code}") {
-            codeDiscount {
-              ... on DiscountCodeBasic {
-                codes(first: 1) { edges { node { asyncUsageCount } } }
-              }
-              ... on DiscountCodeFreeShipping {
-                codes(first: 1) { edges { node { asyncUsageCount } } }
-              }
-              ... on DiscountCodeBxgy {
-                codes(first: 1) { edges { node { asyncUsageCount } } }
-              }
-            }
-          }`
-        );
-
-        const response = await admin.graphql(
-          `query CheckUsage { ${queryParts.join("\n")} }`
-        );
-        const data = await response.json();
-
-        if (data.data) {
-          uniqueCodes.forEach((code, i) => {
-            const result = data.data[`code_${i}`];
-            const count =
-              result?.codeDiscount?.codes?.edges?.[0]?.node?.asyncUsageCount;
-            if (count && count > 0) usedCodes.add(code);
-          });
-        }
-      } catch (e) {
-        console.warn("Could not check discount usage:", e);
+  if (customer?.id) {
+    try {
+      const usedEntries = await prisma.ledger.findMany({
+        where: { customerId: customer.id, reason: "discount_code_used" },
+        select: { metadata: true },
+      });
+      for (const entry of usedEntries) {
+        const meta = entry.metadata as { discountCode?: string } | null;
+        if (meta?.discountCode) usedCodes.add(meta.discountCode);
       }
+    } catch (e) {
+      console.warn("Could not check discount usage from ledger:", e);
     }
   }
 

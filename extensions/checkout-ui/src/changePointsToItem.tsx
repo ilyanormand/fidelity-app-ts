@@ -1,135 +1,107 @@
 import "@shopify/ui-extensions/preact";
 import { useApplyCartLinesChange } from "@shopify/ui-extensions/checkout/preact";
-import { useState, useEffect } from "preact/hooks";
-import { fetchRewardProducts, parseFreeItemsAttribute } from "./utils";
+import { useState, useEffect, useCallback } from "preact/hooks";
+import { fetchRewardProducts, parseFreeItemsAttribute, RewardProduct } from "./utils";
 
-export default function ChangePointsToItem({ balance, setBalance, shopify }) {
-  const [rewards, setRewards] = useState([]);
-  const [redeemingProductId, setRedeemingProductId] = useState(null);
+const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+
+export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId, settings: s = {} }) {
+  const [rewards, setRewards] = useState<RewardProduct[]>([]);
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const applyCartLinesChange = useApplyCartLinesChange();
 
+  // Load available reward products from backend
   useEffect(() => {
-    async function loadRewardProducts() {
+    async function load() {
       try {
-        const data = await fetchRewardProducts(shopify);
+        const token = await shopify.sessionToken.get();
+        const data = await fetchRewardProducts(token);
         setRewards(data);
-      } catch (error) {
+      } catch {
         setRewards([]);
       }
     }
-    loadRewardProducts();
+    load();
   }, []);
 
-  useEffect(() => {
-    setBalance(balance);
-  }, [balance]);
+  // ── REDEEM ──────────────────────────────────────────────────────────────────
+  const redeemProduct = useCallback(async (reward: RewardProduct) => {
+    setRedeemingId(reward.id);
+    setValidationError(null);
 
-  //FUNCTION FOR REDEEM PRODUCT
-  async function redeemProduct(reward) {
-    console.log("[changePointsToItem] redeemProduct START", {
-      reward: reward,
-      currentBalance: balance,
-      pointsCost: reward.pointsCost,
-    });
-
-    setRedeemingProductId(reward.id);
     try {
-      if (balance < reward.pointsCost) {
-        console.warn(
-          "[changePointsToItem] Insufficient balance:",
-          balance,
-          "<",
-          reward.pointsCost,
+      if (balance < reward.pointsCost) return;
+
+      // Confirm redemption: validates AND deducts points from DB + metafield
+      let confirmResult: any = null;
+      try {
+        const token = await shopify.sessionToken.get();
+        const res = await fetch(
+          `${APP_BACKEND_URL}/api/checkout?path=confirm-product-redemption`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              variantId: reward.shopifyVariantId,
+              pointsCost: reward.pointsCost,
+              productTitle: reward.shopifyProductTitle,
+              token,
+            }),
+          },
         );
-        return;
+        confirmResult = await res.json();
+        if (!confirmResult.success) {
+          const msg =
+            confirmResult.error === "insufficient_points"
+              ? shopify.i18n?.translate("notEnoughPoints") || "Points insuffisants"
+              : shopify.i18n?.translate("errors.errorChangePoints") || "Erreur de validation";
+          setValidationError(msg);
+          return;
+        }
+      } catch {
+        // fail-open — network error during confirmation
       }
 
-      console.log("[changePointsToItem] Adding product to cart...");
+      // Snapshot current cart lines before adding
+      const linesBefore = (shopify.lines?.current || []).map(l => l.id);
+
+      // Add the product to the cart with a line-level property for detection
       const addResult = await applyCartLinesChange({
         type: "addCartLine",
-        merchandiseId: reward.variantId,
+        merchandiseId: reward.shopifyVariantId,
         quantity: 1,
+        attributes: [{ key: "_loyalty_free_item", value: "true" }],
       });
+      if (addResult.type === "error") return;
 
-      if (addResult.type === "error") {
-        console.error("[changePointsToItem] Failed to add product:", addResult);
-        return;
-      }
-      console.log("[changePointsToItem] Product added successfully");
-
-      const cartAttributesArray = shopify.attributes.current || [];
-      const cartAttributes: Record<string, string> = {};
-      cartAttributesArray.forEach((attr) => {
-        if (attr && attr.key) {
-          cartAttributes[attr.key] = attr.value;
-        }
-      });
-
-      console.log(
-        "[changePointsToItem] Current cart attributes:",
-        cartAttributes,
-      );
-
-      const currentFreeItems = cartAttributes["_loyalty_free_items"];
-      const freeItemsMap = parseFreeItemsAttribute(currentFreeItems);
-
-      console.log("[changePointsToItem] Current freeItemsMap:", freeItemsMap);
-
-      const existingItem = freeItemsMap[reward.variantId];
-      if (existingItem) {
-        freeItemsMap[reward.variantId] = {
-          quantity: existingItem.quantity + 1,
-          spent: existingItem.spent + reward.pointsCost,
-        };
-        console.log(
-          "[changePointsToItem] Updated existing item:",
-          freeItemsMap[reward.variantId],
-        );
-      } else {
-        freeItemsMap[reward.variantId] = {
-          quantity: 1,
-          spent: reward.pointsCost,
-        };
-        console.log(
-          "[changePointsToItem] Added new item:",
-          freeItemsMap[reward.variantId],
-        );
+      // Find the newly added line and register it for cleanup on unmount
+      const linesAfter = shopify.lines?.current || [];
+      const newLine = linesAfter.find(l => !linesBefore.includes(l.id));
+      if (newLine && registerFreeLineId) {
+        registerFreeLineId(newLine.id, 1);
       }
 
-      console.log("[changePointsToItem] Updating _loyalty_free_items...");
+      // Update _loyalty_free_items attribute (used for cleanup detection)
+      const attrsArray = shopify.attributes?.current ?? [];
+      const attrsMap: Record<string, string> = {};
+      attrsArray.forEach((a: any) => { if (a?.key) attrsMap[a.key] = a.value; });
+      const freeItemsMap = parseFreeItemsAttribute(attrsMap["_loyalty_free_items"]);
+
+      const existing = freeItemsMap[reward.shopifyVariantId];
+      freeItemsMap[reward.shopifyVariantId] = existing
+        ? { quantity: existing.quantity + 1, spent: existing.spent + reward.pointsCost }
+        : { quantity: 1, spent: reward.pointsCost };
+
       await shopify.applyAttributeChange({
         type: "updateAttribute",
         key: "_loyalty_free_items",
         value: JSON.stringify(freeItemsMap),
       });
 
-      console.log(
-        "[changePointsToItem] Before balance update:",
-        balance,
-        "deducting:",
-        reward.pointsCost,
-      );
-      setBalance((prev) => {
-        const newBalance = prev - reward.pointsCost;
-        console.log(
-          "[changePointsToItem] Balance update:",
-          prev,
-          "->",
-          newBalance,
-          `(deducted ${reward.pointsCost})`,
-        );
-        return newBalance;
-      });
-
       const totalSpent = Object.values(freeItemsMap).reduce(
         (sum, item) => sum + item.spent,
         0,
-      );
-
-      console.log(
-        "[changePointsToItem] Total spent calculated:",
-        totalSpent,
-        "updating _loyalty_points_spent...",
       );
       await shopify.applyAttributeChange({
         type: "updateAttribute",
@@ -137,40 +109,70 @@ export default function ChangePointsToItem({ balance, setBalance, shopify }) {
         value: String(totalSpent),
       });
 
-      console.log("[changePointsToItem] redeemProduct END");
-    } catch (error) {
-      console.error("[changePointsToItem] Error in redeemProduct:", error);
+      // Update UI balance from confirmed server response
+      if (confirmResult?.currentBalance !== undefined) {
+        setBalance(confirmResult.currentBalance);
+      }
+    } catch (err) {
+      console.error("[changePointsToItem] redeemProduct error:", err);
     } finally {
-      setRedeemingProductId(null);
+      setRedeemingId(null);
     }
-  }
+  }, [balance, shopify, applyCartLinesChange, setBalance]);
 
-  return (
-    <s-scroll-box maxBlockSize="400px">
-      <s-stack gap="base">
-        <s-text type="strong">{shopify.i18n.translate("pointsToItem")}</s-text>
-
-        {rewards.map((reward) => (
-          <RewardOffer
-            key={reward.id}
-            reward={reward}
-            onRedeem={redeemProduct}
-            balance={balance}
-            isRedeeming={redeemingProductId === reward.id}
-            shopify={shopify}
-          />
-        ))}
-      </s-stack>
-    </s-scroll-box>
-  );
-}
-
-function RewardOffer({ reward, onRedeem, balance, isRedeeming, shopify }) {
-  const { title, pointsCost, imageUrl } = reward;
-  const isDisabled = balance < pointsCost;
+  const titleText = s.points_to_item_title || shopify.i18n.translate("pointsToItem");
 
   return (
     <s-stack gap="base">
+      <s-text type="strong">{titleText}</s-text>
+
+      {validationError && (
+        <s-banner tone="critical">
+          <s-text>{validationError}</s-text>
+        </s-banner>
+      )}
+
+      <s-scroll-box maxBlockSize="400px">
+        <s-stack gap="base">
+          {rewards.map((reward) => (
+            <RewardOffer
+              key={reward.id}
+              reward={reward}
+              onRedeem={redeemProduct}
+              balance={balance}
+              isRedeeming={redeemingId === reward.id}
+              shopify={shopify}
+              settings={s}
+            />
+          ))}
+        </s-stack>
+      </s-scroll-box>
+    </s-stack>
+  );
+}
+
+function RewardOffer({
+  reward,
+  onRedeem,
+  balance,
+  isRedeeming,
+  shopify,
+  settings: s = {},
+}: {
+  reward: RewardProduct;
+  onRedeem: (r: RewardProduct) => void;
+  balance: number;
+  isRedeeming: boolean;
+  shopify: any;
+  settings?: Record<string, any>;
+}) {
+  const { shopifyProductTitle: title, pointsCost, shopifyProductImageUrl: imageUrl } = reward;
+  const canAfford = balance >= pointsCost;
+  const pointsLabel = s.points_label || shopify?.i18n?.translate("points") || "points";
+  const redeemLabel = s.redeem_button || shopify?.i18n?.translate("redeem") || "Échanger";
+
+  return (
+    <s-stack gap="small-200">
       <s-grid
         gap="base"
         gridTemplateColumns="64px 1fr auto"
@@ -187,18 +189,18 @@ function RewardOffer({ reward, onRedeem, balance, isRedeeming, shopify }) {
 
         <s-stack gap="none">
           <s-text type="strong">{title}</s-text>
-          <s-text color="subdued">{pointsCost} points</s-text>
+          <s-text color="subdued">{pointsCost} {pointsLabel}</s-text>
         </s-stack>
 
         {isRedeeming ? (
-          <s-spinner></s-spinner>
+          <s-spinner />
         ) : (
           <s-button
             variant="secondary"
-            disabled={isDisabled}
+            disabled={!canAfford}
             onClick={() => onRedeem(reward)}
           >
-            {shopify?.i18n?.translate("redeem") || "Redeem"}
+            {redeemLabel}
           </s-button>
         )}
       </s-grid>

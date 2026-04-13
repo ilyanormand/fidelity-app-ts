@@ -16,6 +16,18 @@
     "login": "Se connecter",
     "cancelRedemption": "Cancel Redemption"
   },
+  "selectReward": "Choose a reward",
+  "noRewardsAvailable": "No rewards available with your current balance",
+  "noRewardsConfigured": "No rewards configured for this program",
+  "notEnoughPoints": "not enough points",
+  "applyReward": "Apply reward",
+  "cancelReward": "Cancel reward",
+  "rewardApplied": "Reward applied",
+  "loadingRewards": "Loading rewards...",
+  "earnPoints": {
+    "title": "Complete this order to earn up to {{points}} points",
+    "description": "Loyalty points allow you to get rewards for your future purchases. The final number of points awarded may differ if additional discounts are applied."
+  },
   "errors": {
     "joinAccount": "Vous devez vous connecter pour utiliser les points",
     "errorPointsQuantity": "Erreur de quantité de points",

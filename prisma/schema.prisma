@@ -90,6 +90,23 @@ model Reward {
   @@map("rewards")
 }
 
+// RewardProduct model - products that can be redeemed for free with loyalty points
+model RewardProduct {
+  id                     String    @id @default(uuid()) @db.Uuid
+  shopId                 String    @map("shop_id") @db.VarChar(255)
+  shopifyProductId       String    @map("shopify_product_id") @db.VarChar(255)
+  shopifyVariantId       String    @map("shopify_variant_id") @db.VarChar(255)
+  shopifyProductTitle    String    @map("shopify_product_title") @db.VarChar(255)
+  shopifyProductImageUrl String?   @map("shopify_product_image_url") @db.VarChar(512)
+  pointsCost             Int       @map("points_cost")
+  isActive               Boolean   @default(true) @map("is_active")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@unique([shopId, shopifyVariantId])
+  @@map("reward_products")
+}
+
 // Redemption model - tracks reward redemptions
 model Redemption {
   id                  String    @id @default(uuid()) @db.Uuid

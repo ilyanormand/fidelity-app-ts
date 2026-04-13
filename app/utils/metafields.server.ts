@@ -70,18 +70,19 @@ export async function syncBalanceToShopify(
   shopifyCustomerId: string,
   balance: number
 ): Promise<{ success: boolean; error?: any }> {
+  // metafieldsSet is a true upsert — creates if missing, updates if exists.
+  // customerUpdate+metafields only creates, causing "Key must be unique" on repeat calls.
   const mutation = `
-    mutation SetCustomerMetafield($input: CustomerInput!) {
-      customerUpdate(input: $input) {
-        customer {
-          id
-          metafield(namespace: "loyalty", key: "points_balance") {
-            value
-          }
+    mutation SetCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          key
+          value
         }
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -95,22 +96,20 @@ export async function syncBalanceToShopify(
   try {
     const response = await admin.graphql(mutation, {
       variables: {
-        input: {
-          id: gid,
-          metafields: [
-            {
-              namespace: "loyalty",
-              key: "points_balance",
-              value: balance.toString(),
-              type: "number_integer",
-            },
-          ],
-        },
+        metafields: [
+          {
+            ownerId: gid,
+            namespace: "loyalty",
+            key: "points_balance",
+            value: balance.toString(),
+            type: "number_integer",
+          },
+        ],
       },
     });
 
     const data = await response.json();
-    const errors = data.data?.customerUpdate?.userErrors || [];
+    const errors = data.data?.metafieldsSet?.userErrors || [];
 
     if (errors.length > 0) {
       console.error("Error updating metafield:", errors);

@@ -256,11 +256,11 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
   }
 
   .shopify-block {
-    width: 321px;
+    width: 100%;
   }
 
   .loyalty-spa-container {
-    width: 100%;
+    width: 90%;
     padding: 0px;
     flex-direction: column;
     margin: 20px 0px;
@@ -277,7 +277,7 @@ div.page-width.scroll-trigger.animate--slide-in:has(#loyalty-spa-root) {
 
   .loyalty-navbar-mobile .loyalty-navbar-title p {
     color: #000000;
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 700;
     font-family: var(--font-family-basic), sans-serif;
     margin: 0;

@@ -2,7 +2,8 @@
  * Balance verification and auto-correction utilities
  */
 import prisma from "../db.server";
-import { syncBalanceToShopify } from "./metafields.server";
+import { enqueueSyncBalance } from "../queues/shopify-sync.queue";
+import { invalidateBalance } from "./cache.server";
 
 /**
  * Verify a customer's balance matches their ledger
@@ -10,7 +11,6 @@ import { syncBalanceToShopify } from "./metafields.server";
  */
 export async function verifyCustomerBalance(
   customerId: string,
-  admin?: any
 ): Promise<{
   verified: boolean;
   storedBalance: number;
@@ -48,9 +48,9 @@ export async function verifyCustomerBalance(
       data: { currentBalance: calculatedBalance },
     });
 
-    // Sync to Shopify if admin context available
-    if (admin && customer.shopifyCustomerId) {
-      await syncBalanceToShopify(admin, customer.shopifyCustomerId, calculatedBalance);
+    if (customer.shopifyCustomerId && customer.shopId) {
+      await enqueueSyncBalance(customer.shopifyCustomerId, calculatedBalance, customer.shopId);
+      await invalidateBalance(customer.shopifyCustomerId, customer.shopId);
     }
 
     return {
@@ -73,7 +73,7 @@ export async function verifyCustomerBalance(
  * Verify all customers' balances
  * Returns list of customers that had discrepancies
  */
-export async function verifyAllBalances(admin?: any): Promise<{
+export async function verifyAllBalances(): Promise<{
   total: number;
   verified: number;
   corrected: number;
@@ -88,7 +88,7 @@ export async function verifyAllBalances(admin?: any): Promise<{
   const discrepancies = [];
 
   for (const customer of customers) {
-    const result = await verifyCustomerBalance(customer.id, admin);
+    const result = await verifyCustomerBalance(customer.id);
 
     if (result.verified) {
       verified++;

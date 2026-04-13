@@ -203,57 +203,26 @@ export async function cancelPointsRedemption(shopify: any) {
 }
 
 //FUNCTION FOR FETCH REWARD PRODUCTS
-export async function fetchRewardProducts(shopify) {
-  if (!shopify || typeof shopify.query !== "function") {
+export interface RewardProduct {
+  id: string;
+  shopifyProductId: string;
+  shopifyVariantId: string;
+  shopifyProductTitle: string;
+  shopifyProductImageUrl: string | null;
+  pointsCost: number;
+}
+
+export async function fetchRewardProducts(sessionToken?: string): Promise<RewardProduct[]> {
+  try {
+    let url = `${APP_BACKEND_URL}/api/checkout?path=reward-products`;
+    if (sessionToken) url += `&token=${encodeURIComponent(sessionToken)}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.rewardProducts) ? data.rewardProducts : [];
+  } catch {
     return [];
   }
-  const query = `
-    query rewardProducts {
-      products(first: 50) {
-        nodes {
-          id
-          title
-          featuredImage { url }
-          variants(first: 1) { nodes { id } }
-          metafields(identifiers: [
-            { namespace: "loyalty", key: "points_cost" }
-          ]) {
-            value
-          }
-        }
-      }
-    }
-  `;
-
-  const response = await shopify.query(query);
-  const products = response?.data?.products?.nodes ?? [];
-  const rewards = products
-    .map((p) => {
-      const mf = Array.isArray(p.metafields) ? p.metafields[0] : null;
-
-      // metafield exists and has value
-      if (!mf || mf.value == null) return null;
-
-      // Check if variants exist and have at least one node
-      if (
-        !p.variants?.nodes ||
-        !Array.isArray(p.variants.nodes) ||
-        p.variants.nodes.length === 0 ||
-        !p.variants.nodes[0]?.id
-      ) {
-        return null;
-      }
-
-      return {
-        id: p.id,
-        title: p.title,
-        imageUrl: p.featuredImage?.url ?? null,
-        variantId: p.variants.nodes[0].id,
-        pointsCost: Number(mf.value),
-      };
-    })
-    .filter(Boolean);
-  return rewards;
 }
 
 //FUNCTION FOR VALIDATE CART WITH FREE ITEMS
@@ -391,6 +360,56 @@ export async function validatePointsBalance(
       const availableBalance = Math.max(0, metafieldsBalance - totalSpent);
       setBalance(availableBalance);
     }
+  }
+}
+
+export interface CheckoutReward {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  pointsCost: number;
+  discountType: string;
+  discountValue: number;
+  minimumCartValue: number | null;
+}
+
+/**
+ * Direct app backend URL — bypasses the Shopify App Proxy entirely.
+ * Required because the App Proxy does NOT support checkout UI extension
+ * requests on password-protected stores (Shopify redirects before our
+ * server is reached). See: https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration#network-access
+ */
+const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+
+export async function fetchRewards(shopDomain: string, sessionToken?: string): Promise<CheckoutReward[]> {
+  try {
+    let url = `${APP_BACKEND_URL}/api/checkout?path=rewards`;
+    if (sessionToken) url += `&token=${encodeURIComponent(sessionToken)}`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.rewards) ? data.rewards : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function redeemRewardAtCheckout(
+  shopDomain: string,
+  rewardId: string,
+  sessionToken: string,
+): Promise<{ success: boolean; discountCode?: string; newBalance?: number; error?: string }> {
+  try {
+    const res = await fetch(`${APP_BACKEND_URL}/api/checkout?path=redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ rewardId, token: sessionToken }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return { success: false, error: String(err) };
   }
 }
 

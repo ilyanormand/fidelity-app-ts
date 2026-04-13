@@ -3,10 +3,43 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { processRedemption } from "../utils/redemption.server";
 import { createLoyaltyDiscount } from "../utils/createShopifyDiscount.server";
-import { syncBalanceToShopify } from "../utils/metafields.server";
 import shopify from "../shopify.server";
+import { getCachedBalance, setCachedBalance } from "../utils/cache.server";
+import { createLogger } from "../utils/logger.server";
+
+const log = createLogger("proxy");
 
 const SIGNUP_BONUS_POINTS = 15;
+
+/**
+ * Decode the `sub` claim (customer GID) from a Shopify session token (JWT).
+ * Checkout UI extensions can't send Authorization headers without triggering
+ * a CORS preflight that the App Proxy rejects, so the token is passed as a
+ * query param (?token=...) or in the POST body ({ token: "..." }).
+ */
+function extractCustomerGidFromToken(token: string | null): string | null {
+  try {
+    if (!token) return null;
+    const [, payloadB64] = token.split(".");
+    if (!payloadB64) return null;
+    const json = Buffer.from(payloadB64, "base64url").toString("utf-8");
+    const payload = JSON.parse(json);
+    return payload.sub ?? null; // e.g. "gid://shopify/Customer/12345"
+  } catch {
+    return null;
+  }
+}
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+};
+
+function corsJson(data: unknown, init?: ResponseInit) {
+  return Response.json(data, {
+    ...init,
+    headers: { ...CORS_HEADERS, ...(init?.headers ?? {}) },
+  });
+}
 
 /**
  * Auto-create a customer record when it doesn't exist yet in our DB.
@@ -23,6 +56,8 @@ async function getOrCreateCustomer(gid: string, shop: string) {
     tags?: string[];
     emailMarketingConsent?: string;
   } = {};
+
+  log.info(`Auto-creating customer gid=${gid} for shop=${shop}`);
 
   try {
     const { admin } = await shopify.unauthenticated.admin(shop);
@@ -53,7 +88,7 @@ async function getOrCreateCustomer(gid: string, shop: string) {
       };
     }
   } catch (e) {
-    console.warn("[proxy] Could not fetch Shopify profile for auto-create:", e);
+    log.warn("Could not fetch Shopify profile for auto-create:", e);
   }
 
   const displayName = shopifyProfile.firstName
@@ -109,7 +144,9 @@ async function getOrCreateCustomer(gid: string, shop: string) {
       });
     });
     customer.currentBalance = (customer.currentBalance ?? 0) + SIGNUP_BONUS_POINTS;
-    console.log(`✅ [proxy] Awarded ${SIGNUP_BONUS_POINTS} signup pts to customer ${gid}.`);
+    log.success(`Awarded ${SIGNUP_BONUS_POINTS} signup pts to customer ${gid}`);
+  } else {
+    log.info(`Customer ${gid} already has signup bonus — skipping`);
   }
 
   return customer;
@@ -133,11 +170,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  const customerId = url.searchParams.get("logged_in_customer_id");
+  // logged_in_customer_id is set by App Proxy for theme/storefront requests.
+  // Checkout UI extensions pass a session token via ?token= query param instead.
+  const customerId =
+    url.searchParams.get("logged_in_customer_id") ||
+    extractCustomerGidFromToken(url.searchParams.get("token"));
   const path = params["*"]; // Get the splat path
 
+  log.info(`GET /${path} shop=${shop} customerId=${customerId || "guest"}`);
+
   try {
-    // Normalize customerId to GID if it's numeric (DB usually stores GID)
     let gid = customerId;
     if (customerId && !customerId.startsWith("gid://")) {
       gid = `gid://shopify/Customer/${customerId}`;
@@ -145,13 +187,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // GET /apps/loyalty/customer - Get customer points balance
     if (path === "customer" && gid && shop) {
+      // Try Redis cache first
+      const cached = await getCachedBalance(gid, shop);
+      if (cached !== null) {
+        log.info(`Cache HIT for ${gid} — balance=${cached}`);
+        const customer = await prisma.customer.findFirst({
+          where: { shopifyCustomerId: gid, shopId: shop },
+          select: { id: true, customerTags: true, emailMarketingConsent: true },
+        });
+        if (customer) {
+          return corsJson({ success: true, customer: { ...customer, currentBalance: cached } });
+        }
+      }
+
+      log.info(`Cache MISS for ${gid} — querying DB`);
       let customer = await prisma.customer.findFirst({
         where: { shopifyCustomerId: gid, shopId: shop },
         select: { id: true, currentBalance: true, customerTags: true, emailMarketingConsent: true },
       });
 
       if (!customer) {
-        console.log(`[customer] Customer ${gid} not found — auto-creating.`);
+        log.warn(`Customer ${gid} not found — auto-creating`);
         const created = await getOrCreateCustomer(gid, shop);
         customer = {
           id: created.id,
@@ -161,54 +217,42 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         };
       }
 
-      // Fire-and-forget metafield sync
-      shopify.unauthenticated.admin(shop).then(async ({ admin }) => {
-        await syncBalanceToShopify(admin, gid, customer!.currentBalance || 0);
-      }).catch(err => console.error("Proxy sync error:", err));
+      // Populate cache for next request
+      await setCachedBalance(gid, shop, customer.currentBalance ?? 0);
+      log.info(`Returned customer ${gid} balance=${customer.currentBalance}`);
 
-      return Response.json({
-        success: true,
-        customer,
-      });
+      return corsJson({ success: true, customer });
     }
 
     // GET /apps/loyalty/rewards - Get available rewards for shop
     if (path === "rewards" && shop) {
       const rewards = await prisma.reward.findMany({
-        where: {
-          shopId: shop,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          imageUrl: true,
-          pointsCost: true,
-          discountType: true,
-          discountValue: true,
-          minimumCartValue: true,
-        },
+        where: { shopId: shop, isActive: true },
+        select: { id: true, name: true, description: true, imageUrl: true, pointsCost: true, discountType: true, discountValue: true, minimumCartValue: true },
         orderBy: { pointsCost: "asc" },
       });
+      log.info(`Returned ${rewards.length} rewards for shop=${shop}`);
+      return corsJson({ success: true, rewards });
+    }
 
-      return Response.json({
-        success: true,
-        rewards,
+    // GET /apps/loyalty/reward-products — list active reward products (variant IDs)
+    if (path === "reward-products" && shop) {
+      const rewardProducts = await prisma.rewardProduct.findMany({
+        where: { shopId: shop, isActive: true },
+        select: { id: true, shopifyVariantId: true, shopifyProductTitle: true, pointsCost: true },
+        orderBy: { pointsCost: "asc" },
       });
+      log.info(`Returned ${rewardProducts.length} reward products for shop=${shop}`);
+      return corsJson({ success: true, rewardProducts });
     }
 
     // GET /apps/loyalty/transactions - Get customer transaction history
     if (path === "transactions" && gid) {
-      const customer = await prisma.customer.findFirst({
-        where: { shopifyCustomerId: gid },
-      });
+      const customer = await prisma.customer.findFirst({ where: { shopifyCustomerId: gid } });
 
       if (!customer) {
-        return Response.json({
-          success: false,
-          error: "Customer not found",
-        });
+        log.warn(`Transactions: customer ${gid} not found`);
+        return corsJson({ success: false, error: "Customer not found" });
       }
 
       const transactions = await prisma.ledger.findMany({
@@ -223,7 +267,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         },
       });
 
-      return Response.json({
+      return corsJson({
         success: true,
         transactions: transactions.map((t) => ({
           id: t.id,
@@ -236,20 +280,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // GET /apps/loyalty/redemptions - Get customer redemptions (My Rewards)
     if (path === "redemptions" && gid) {
-      console.log(`[redemptions] Looking up customer: gid=${gid}, shop=${shop}`);
+      log.info(`Redemptions lookup: gid=${gid} shop=${shop}`);
 
       let customer = await prisma.customer.findFirst({
-        where: {
-          shopifyCustomerId: gid,
-          ...(shop && { shopId: shop }),
-        },
+        where: { shopifyCustomerId: gid, ...(shop && { shopId: shop }) },
       });
 
-      console.log(`[redemptions] Customer found:`, customer ? `id=${customer.id}, balance=${customer.currentBalance}` : "NOT FOUND");
-
       if (!customer) {
-        console.log(`[redemptions] Auto-creating customer ${gid}.`);
+        log.warn(`Redemptions: customer ${gid} not found — auto-creating`);
         customer = await getOrCreateCustomer(gid, shop!);
+      } else {
+        log.info(`Redemptions: customer found id=${customer.id} balance=${customer.currentBalance}`);
       }
 
       const redemptions = await prisma.redemption.findMany({
@@ -271,84 +312,24 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         take: 20, // Limit to last 20 redemptions for performance
       });
 
-      // Fetch discount usage from Shopify to mark as used
-      let usageMap: Record<string, boolean> = {};
-
+      // Build usage map from our own ledger (written by orders/paid webhook instantly)
+      const usageMap: Record<string, boolean> = {};
       try {
-        const { admin } = await shopify.unauthenticated.admin(shop!);
-        const codes = redemptions
-          .map(r => r.shopifyDiscountCode)
-          .filter(c => c) as string[];
-
-        if (codes.length > 0) {
-          // Construct query with aliases to fetch all codes in one request
-          // codeDiscountNodeByCode takes a single code, so we use aliases like code_0: ... code_1: ...
-          // Deduplicate codes first
-          const uniqueCodes = [...new Set(codes)];
-
-          const queryParts = uniqueCodes.map((code, index) => `
-            code_${index}: codeDiscountNodeByCode(code: "${code}") {
-              codeDiscount {
-                ... on DiscountCodeBasic {
-                  codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-                ... on DiscountCodeBxgy {
-                   codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-                ... on DiscountCodeFreeShipping {
-                   codes(first: 1) {
-                    edges {
-                      node {
-                        asyncUsageCount
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          `);
-
-          const response = await admin.graphql(`
-            query GetDiscountUsage {
-              ${queryParts.join('\n')}
-            }
-          `);
-
-          const data = await response.json();
-
-          // Map results back to codes
-          if (data.data) {
-            uniqueCodes.forEach((code, index) => {
-              const alias = `code_${index}`;
-              const result = data.data[alias];
-
-              if (result?.codeDiscount?.codes?.edges?.length > 0) {
-                const usageCount = result.codeDiscount.codes.edges[0].node.asyncUsageCount;
-                if (usageCount > 0) {
-                  usageMap[code] = true;
-                }
-              }
-            });
+        const usedEntries = await prisma.ledger.findMany({
+          where: { customerId: customer.id, reason: "discount_code_used" },
+          select: { metadata: true },
+        });
+        for (const entry of usedEntries) {
+          const meta = entry.metadata as { discountCode?: string } | null;
+          if (meta?.discountCode) {
+            usageMap[meta.discountCode] = true;
           }
         }
       } catch (err) {
-        console.error("Failed to fetch discount usage:", err);
-        // Continue without usage info (defaults to false)
+        console.error("Failed to fetch discount usage from ledger:", err);
       }
 
-      return Response.json({
+      return corsJson({
         success: true,
         redemptions: redemptions.map((r) => {
           const isUsed = r.shopifyDiscountCode ? !!usageMap[r.shopifyDiscountCode] : false;
@@ -387,17 +368,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       });
     }
 
-    return Response.json({
+    return corsJson({
       success: false,
       error: "Invalid endpoint",
       path,
     });
   } catch (error) {
-    console.error("Proxy error:", error);
-    return Response.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    log.error("Proxy loader error:", error);
+    return corsJson({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 
@@ -406,65 +384,139 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
-  const customerId = url.searchParams.get("logged_in_customer_id");
   const path = params["*"];
 
-  // Get admin context for creating discounts (requires session)
-  // Note: App proxy doesn't have admin session, so we'll use a different approach
-  // For now, we'll generate codes without creating them in Shopify
-  // You'll need to create them via webhook or separate admin endpoint
+  // Parse body once — handles both application/json and text/plain (checkout extensions
+  // send text/plain to avoid CORS preflight)
+  let parsedBody: Record<string, any> = {};
+  try {
+    const raw = await request.text();
+    if (raw) parsedBody = JSON.parse(raw);
+  } catch { /* empty body or non-JSON */ }
+
+  // Resolve customer ID: App Proxy sets logged_in_customer_id for storefront;
+  // checkout extensions pass a session token via ?token= or body.token
+  const customerId =
+    url.searchParams.get("logged_in_customer_id") ||
+    extractCustomerGidFromToken(url.searchParams.get("token") || parsedBody.token || null);
+
+  log.info(`POST /${path} shop=${shop} customerId=${customerId || "guest"}`);
 
   try {
     // POST /apps/loyalty/redeem - Redeem points for a reward
     if (path === "redeem") {
-      const body = await request.json();
-      const { rewardId, cartTotal } = body;
+      const { rewardId, cartTotal } = parsedBody;
+      log.info(`Redeem request: rewardId=${rewardId} cartTotal=${cartTotal} customer=${customerId}`);
 
       if (!rewardId) {
-        return Response.json({
-          success: false,
-          error: "rewardId is required",
-        }, { status: 400 });
+        log.warn("Redeem: missing rewardId");
+        return corsJson({ success: false, error: "rewardId is required" }, { status: 400 });
       }
 
-      // Check if customer is logged in
       if (!customerId) {
-        return Response.json({
-          success: false,
-          error: "Customer must be logged in to redeem points",
-          requiresLogin: true,
-        }, { status: 401 });
+        log.warn("Redeem: customer not logged in");
+        return corsJson({ success: false, error: "Customer must be logged in to redeem points", requiresLogin: true }, { status: 401 });
       }
 
       if (!shop) {
-        return Response.json({
-          success: false,
-          error: "Shop parameter missing",
-        }, { status: 400 });
+        log.warn("Redeem: missing shop param");
+        return corsJson({ success: false, error: "Shop parameter missing" }, { status: 400 });
       }
 
-      // Convert to GID for internal consistency
       let gid = customerId;
       if (customerId && !customerId.startsWith("gid://")) {
         gid = `gid://shopify/Customer/${customerId}`;
       }
 
-      // Call shared utility directly to avoid internal network calls and 405 errors
       const result = await processRedemption(gid, rewardId, shop, cartTotal);
-      return Response.json(result, { status: result.status || (result.success ? 200 : 400) });
+      log.success(`Redeem result: success=${result.success} code=${(result as any).discountCode || "N/A"}`);
+      return corsJson(result, { status: result.status || (result.success ? 200 : 400) });
+    }
+
+    // POST /apps/loyalty/rollback-product-redemption - Refund points for abandoned checkout
+    if (path === "rollback-product-redemption") {
+      if (!customerId || !shop) {
+        return corsJson({ success: false, error: "Missing customer or shop" }, { status: 400 });
+      }
+
+      let gid = customerId;
+      if (!gid.startsWith("gid://")) {
+        gid = `gid://shopify/Customer/${gid}`;
+      }
+
+      const { freeItems } = parsedBody;
+      if (!freeItems || typeof freeItems !== "object") {
+        return corsJson({ success: false, error: "freeItems is required" }, { status: 400 });
+      }
+
+      // freeItems format: { "gid://shopify/ProductVariant/123": { quantity: 1, spent: 50 }, ... }
+      let totalRefund = 0;
+      for (const [, val] of Object.entries(freeItems)) {
+        const item = val as any;
+        if (item && typeof item.spent === "number" && item.spent > 0) {
+          totalRefund += item.spent;
+        }
+      }
+
+      if (totalRefund <= 0) {
+        return corsJson({ success: true, refunded: 0 });
+      }
+
+      const customer = await prisma.customer.findFirst({
+        where: { shopifyCustomerId: gid, shopId: shop },
+        select: { id: true, currentBalance: true },
+      });
+
+      if (!customer) {
+        return corsJson({ success: false, error: "Customer not found" }, { status: 404 });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.ledger.create({
+          data: {
+            customerId: customer.id,
+            amount: totalRefund,
+            reason: "free_product_rollback",
+            metadata: {
+              freeItems,
+              source: "checkout_abandoned",
+            },
+          },
+        });
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: { currentBalance: { increment: totalRefund } },
+        });
+      });
+
+      const updated = await prisma.customer.findUnique({
+        where: { id: customer.id },
+        select: { currentBalance: true },
+      });
+
+      log.success(`rollback-product-redemption: refunded ${totalRefund} pts. New balance: ${updated?.currentBalance}`);
+
+      try {
+        const { enqueueSyncBalance } = await import("../queues/shopify-sync.queue");
+        const { invalidateBalance } = await import("../utils/cache.server");
+        await enqueueSyncBalance(gid, updated?.currentBalance ?? 0, shop);
+        await invalidateBalance(gid, shop);
+      } catch {}
+
+      return corsJson({ success: true, refunded: totalRefund, newBalance: updated?.currentBalance });
     }
 
     // POST /apps/loyalty/subscribe-newsletter - Subscribe email to newsletter via Admin API
     if (path === "subscribe-newsletter") {
-      const body = await request.json();
-      const { email } = body;
+      const { email } = parsedBody;
+      log.info(`Newsletter subscribe: email=${email}`);
 
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return Response.json({ success: false, error: "Valid email is required" }, { status: 400 });
+        return corsJson({ success: false, error: "Valid email is required" }, { status: 400 });
       }
 
       if (!shop) {
-        return Response.json({ success: false, error: "Shop parameter missing" }, { status: 400 });
+        return corsJson({ success: false, error: "Shop parameter missing" }, { status: 400 });
       }
 
       const { admin } = await shopify.unauthenticated.admin(shop);
@@ -493,7 +545,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (existingNode) {
         const alreadySubscribed = existingNode.emailMarketingConsent?.marketingState === "SUBSCRIBED";
         if (alreadySubscribed) {
-          return Response.json({ success: true, alreadySubscribed: true });
+          return corsJson({ success: true, alreadySubscribed: true });
         }
 
         // Update existing customer's email marketing consent
@@ -522,7 +574,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const updateErrors = updateData.data?.customerEmailMarketingConsentUpdate?.userErrors ?? [];
         if (updateErrors.length > 0) {
           console.error("[subscribe-newsletter] Update errors:", updateErrors);
-          return Response.json({ success: false, error: updateErrors[0]?.message }, { status: 422 });
+          return corsJson({ success: false, error: updateErrors[0]?.message }, { status: 422 });
         }
       } else {
         // Create new customer with email marketing opted in
@@ -554,25 +606,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             e.message?.toLowerCase().includes("email") && e.message?.toLowerCase().includes("taken")
           );
           if (!emailTaken) {
-            console.error("[subscribe-newsletter] Create errors:", createErrors);
-            return Response.json({ success: false, error: createErrors[0]?.message }, { status: 422 });
+            log.error("subscribe-newsletter create errors:", createErrors);
+            return corsJson({ success: false, error: createErrors[0]?.message }, { status: 422 });
           }
         }
       }
 
-      return Response.json({ success: true });
+      log.success(`Newsletter subscription processed for email=${email}`);
+      return corsJson({ success: true });
     }
 
-    return Response.json({
-      success: false,
-      error: "Invalid endpoint",
-    }, { status: 404 });
+    log.warn(`Unknown proxy action path: /${path}`);
+    return corsJson({ success: false, error: "Invalid endpoint" }, { status: 404 });
   } catch (error) {
-    console.error("Proxy action error:", error);
-    return Response.json({
-      success: false,
-      error: "Internal server error",
-    }, { status: 500 });
+    log.error("Proxy action error:", error);
+    return corsJson({ success: false, error: "Internal server error" }, { status: 500 });
   }
 };
 
