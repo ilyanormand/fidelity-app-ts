@@ -65,21 +65,28 @@
       // Next reward based on total points after purchase
       const nextReward = rewards.find((r) => r.pointsCost > cartEarnedPoints);
 
+      const allUnlockedText = banner.dataset.textAllUnlocked || "Toutes les récompenses sont débloquées avec votre solde actuel !";
+      const progressTemplate = banner.dataset.textProgress || 'Avec ce panier : [points] points sur [target] pour débloquer une récompense de "[reward]"';
+
       if (!nextReward) {
-        description.textContent =
-          "Toutes les récompenses sont débloquées avec votre solde actuel !";
+        description.textContent = allUnlockedText;
         progressFill.style.width = "100%";
         return;
       }
 
-      // Progress bar reflects total points after purchase toward the next reward
       const progress = Math.min(
         Math.round((cartEarnedPoints / nextReward.pointsCost) * 100),
         100
       );
       progressFill.style.width = `${progress}%`;
 
-      description.textContent = `Avec ce panier : ${cartEarnedPoints} points sur ${nextReward.pointsCost} pour débloquer une récompense de "${nextReward.name}"`;
+      const remainingPoints = nextReward.pointsCost - cartEarnedPoints;
+
+      description.textContent = progressTemplate
+        .replaceAll("[points]", cartEarnedPoints)
+        .replaceAll("[target]", nextReward.pointsCost)
+        .replaceAll("[reward]", nextReward.name)
+        .replaceAll("[remainingPoints]", remainingPoints);
     });
   }
 

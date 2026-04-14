@@ -7,6 +7,9 @@
   data-product-price="{{ product.price }}"
   data-customer-logged-in="{% if customer %}true{% else %}false{% endif %}"
   data-product-id="{{ product.id }}"
+  data-text-loading="{{ block.settings.loading_text }}"
+  data-text-all-unlocked="{{ block.settings.all_rewards_unlocked_text }}"
+  data-text-progress="{{ block.settings.progress_text }}"
   style="
     --ppb-bg-start: {{ block.settings.background_color }};
     --ppb-bg-end: {{ block.settings.background_color_end }};
@@ -52,7 +55,7 @@
           <div class="ppb-progress-fill" id="ppb-progress-{{ product.id }}"></div>
         </div>
         <p class="ppb-description" id="ppb-description-{{ product.id }}">
-          Chargement...
+          {{ block.settings.loading_text }}
         </p>
       {% endif %}
       {% unless customer %}
@@ -176,6 +179,29 @@
       "id": "register_link_text",
       "label": "Texte du lien d'inscription",
       "default": "S'inscrire"
+    },
+    {
+      "type": "header",
+      "content": "Description (barre de progression)"
+    },
+    {
+      "type": "text",
+      "id": "loading_text",
+      "label": "Texte de chargement",
+      "default": "Chargement..."
+    },
+    {
+      "type": "text",
+      "id": "all_rewards_unlocked_text",
+      "label": "Toutes les récompenses débloquées",
+      "default": "Toutes les récompenses sont débloquées avec votre solde actuel !"
+    },
+    {
+      "type": "text",
+      "id": "progress_text",
+      "label": "Texte de progression",
+      "default": "Avec ce panier : [points] points sur [target] pour débloquer une récompense de \"[reward]\" (encore [remainingPoints] points)",
+      "info": "Utilisez [points] pour le nombre de points, [target] pour l'objectif, [reward] pour le nom de la récompense, et [remainingPoints] pour les points restants"
     }
   ]
 }

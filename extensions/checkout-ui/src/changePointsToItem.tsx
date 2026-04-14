@@ -7,6 +7,7 @@ const APP_BACKEND_URL = "https://staging.fwn-tech.com";
 
 export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId, settings: s = {} }) {
   const [rewards, setRewards] = useState<RewardProduct[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const applyCartLinesChange = useApplyCartLinesChange();
@@ -20,6 +21,8 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
         setRewards(data);
       } catch {
         setRewards([]);
+      } finally {
+        setLoaded(true);
       }
     }
     load();
@@ -120,10 +123,13 @@ export default function ChangePointsToItem({ balance, setBalance, shopify, regis
     }
   }, [balance, shopify, applyCartLinesChange, setBalance]);
 
+  if (loaded && rewards.length === 0) return null;
+
   const titleText = s.points_to_item_title || shopify.i18n.translate("pointsToItem");
 
   return (
     <s-stack gap="base">
+      <s-divider />
       <s-text type="strong">{titleText}</s-text>
 
       {validationError && (

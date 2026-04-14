@@ -2,7 +2,7 @@
  * Ensures the loyalty discount function is registered as an automatic discount
  * in the Shopify store with the correct discountClasses.
  *
- * Without discountClasses: [PRODUCT, ORDER, SHIPPING] the function never
+ * Without discountClasses: [PRODUCT, ORDER] the function never
  * receives the Product class and cannot apply 100% off to free loyalty items.
  */
 
@@ -45,9 +45,11 @@ async function findExistingDiscount(admin: any): Promise<{
       if (d?.title !== DISCOUNT_TITLE) continue;
 
       const classes: string[] = d?.discountClasses ?? [];
+      const hasRequired = classes.includes("PRODUCT") && classes.includes("ORDER");
+      const hasShipping = classes.includes("SHIPPING");
       if (
-        classes.includes("PRODUCT") &&
-        classes.includes("ORDER") &&
+        hasRequired &&
+        !hasShipping &&
         d?.status !== "EXPIRED"
       ) {
         isCorrect = true;
@@ -108,7 +110,7 @@ async function createDiscount(admin: any): Promise<boolean> {
   const input = {
     title: DISCOUNT_TITLE,
     functionHandle: FUNCTION_HANDLE,
-    discountClasses: ["PRODUCT", "ORDER", "SHIPPING"],
+    discountClasses: ["PRODUCT", "ORDER"],
     startsAt: new Date().toISOString(),
     combinesWith: {
       orderDiscounts: true,
