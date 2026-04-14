@@ -190,7 +190,6 @@ function Extension() {
                 applyDiscountCodeChange={applyDiscountCodeChange}
                 settings={s}
               />
-              <s-divider />
               <ChangePointsToItem
                 shopify={shopify}
                 balance={balance}
