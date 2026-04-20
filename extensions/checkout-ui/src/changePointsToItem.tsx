@@ -3,7 +3,7 @@ import { useApplyCartLinesChange } from "@shopify/ui-extensions/checkout/preact"
 import { useState, useEffect, useCallback } from "preact/hooks";
 import { fetchRewardProducts, parseFreeItemsAttribute, RewardProduct } from "./utils";
 
-const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+const APP_BACKEND_URL = "https://fwn-tech.com";
 
 export default function ChangePointsToItem({ balance, setBalance, shopify, registerFreeLineId, settings: s = {} }) {
   const [rewards, setRewards] = useState<RewardProduct[]>([]);

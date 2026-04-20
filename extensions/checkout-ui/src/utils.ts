@@ -380,7 +380,7 @@ export interface CheckoutReward {
  * requests on password-protected stores (Shopify redirects before our
  * server is reached). See: https://shopify.dev/docs/api/checkout-ui-extensions/latest/configuration#network-access
  */
-const APP_BACKEND_URL = "https://staging.fwn-tech.com";
+const APP_BACKEND_URL = "https://fwn-tech.com";
 
 export async function fetchRewards(shopDomain: string, sessionToken?: string): Promise<CheckoutReward[]> {
   try {
